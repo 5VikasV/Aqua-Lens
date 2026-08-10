@@ -9,9 +9,10 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "check": "tsc --noEmit",
-    "test": "tsx --test src/analyzer/__tests__/dependencyExtractor.test.ts src/analyzer/__tests__/impactAnalyzer.test.ts"
+    "test": "tsx --test src/analyzer/__tests__/dependencyExtractor.test.ts src/analyzer/__tests__/impactAnalyzer.test.ts src/analyzer/__tests__/retrievalEngine.test.ts src/analyzer/__tests__/aiInvestigator.test.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

@@ -2,7 +2,17 @@ import { validateGitHubUrl } from './urlValidator.js';
 import { cloneRepository } from './gitCloner.js';
 import { scanRepositoryFiles } from './fileScanner.js';
 import { extractDependencies } from './dependencyExtractor.js';
-import { AnalyzeResponse } from '../types/index.js';
+import { extractSymbols } from './symbolExtractor.js';
+import { workspaceStore } from './workspaceStore.js';
+import { searchCode } from './codeSearch.js';
+import { buildRetrievalContext } from './contextBuilder.js';
+import { AnalyzeResponse, ExtractedSymbol } from '../types/index.js';
+
+export * from './symbolExtractor.js';
+export * from './codeSearch.js';
+export * from './contextBuilder.js';
+export * from './workspaceStore.js';
+export * from './aiInvestigator.js';
 
 export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeResponse> {
   const startTime = Date.now();
@@ -96,6 +106,24 @@ export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeR
       Object.keys(scan.packageDependencies.dependencies || {}).length +
       Object.keys(scan.packageDependencies.devDependencies || {}).length;
 
+    // 5. Extract AST symbols and build AnalysisWorkspace for lifetime retention
+    const symbolsByFile = new Map<string, ExtractedSymbol[]>();
+    for (const [filePath, content] of scan.fileContents.entries()) {
+      symbolsByFile.set(filePath, extractSymbols(content, filePath));
+    }
+
+    const workspaceId = `${validation.owner}/${validation.repoName}`;
+    workspaceStore.saveWorkspace({
+      id: workspaceId,
+      repositoryUrl: validation.normalizedUrl,
+      files: updatedFiles,
+      fileContents: scan.fileContents,
+      symbolsByFile,
+      dependencyGraph: graph,
+      packageDependencies: scan.packageDependencies,
+      createdAt: new Date().toISOString()
+    });
+
     const analysisTimeMs = Date.now() - startTime;
 
     return {
@@ -158,9 +186,10 @@ export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeR
       error: analysisErr.message || 'An error occurred during repository analysis'
     };
   } finally {
-    // 5. Always cleanup temporary cloned files
+    // 6. Cleanup temporary cloned repository files on disk
     if (cloneResult && cloneResult.cleanup) {
       await cloneResult.cleanup();
     }
   }
 }
+

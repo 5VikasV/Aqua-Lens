@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import healthRoutes from './routes/health.routes.js';
 import analyzeRoutes from './routes/analyze.routes.js';
 import impactRoutes from './routes/impact.routes.js';
+import investigateRoutes from './routes/investigate.routes.js';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use(express.json({ limit: '2mb' }));
 app.use('/api', healthRoutes);
 app.use('/api', analyzeRoutes);
 app.use('/api', impactRoutes);
+app.use('/api', investigateRoutes);
 
 // Global Error Handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

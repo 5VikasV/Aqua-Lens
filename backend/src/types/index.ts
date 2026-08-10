@@ -130,4 +130,99 @@ export interface ImpactAnalysisRequest {
   targetPath: string;
 }
 
+// Code Retrieval & Context Engine Types
+export type SymbolKind = 'function' | 'class' | 'interface' | 'variable' | 'type' | 'enum' | 'method';
+
+export interface ExtractedSymbol {
+  name: string;
+  kind: SymbolKind;
+  lineStart: number;
+  lineEnd: number;
+  isExported: boolean;
+}
+
+export interface SearchResultSnippet {
+  startLine: number;
+  endLine: number;
+  content: string;
+}
+
+export interface CodeSearchResult {
+  filePath: string;
+  language: string;
+  score: number;
+  matchedTerms: string[];
+  lineRanges: { start: number; end: number }[];
+  snippets: SearchResultSnippet[];
+  symbols: ExtractedSymbol[];
+  rankingExplanation?: string;
+}
+
+export interface CodeSearchOptions {
+  maxResults?: number;
+}
+
+export interface ContextBuilderOptions {
+  maxFiles?: number;
+  maxLines?: number;
+  maxCharacters?: number;
+}
+
+export interface RetrievedContext {
+  files: CodeSearchResult[];
+  totalFiles: number;
+  totalLines: number;
+  totalCharacters: number;
+  formattedContext: string;
+}
+
+export interface AnalysisWorkspace {
+  id: string;
+  repositoryUrl: string;
+  files: FileMetric[];
+  fileContents: Map<string, string>;
+  symbolsByFile: Map<string, ExtractedSymbol[]>;
+  dependencyGraph: DependencyGraph;
+  packageDependencies: PackageDependencies;
+  createdAt: string;
+}
+
+// AI Investigation Types
+export interface InvestigateRequest {
+  workspaceId: string;
+  question: string;
+}
+
+export interface InvestigateEvidence {
+  id: string;
+  filePath: string;
+  matchedSymbols: string[];
+  lineRanges: { start: number; end: number }[];
+  snippet: string;
+  relevanceScore: number;
+}
+
+export interface InvestigateClaim {
+  text: string;
+  evidenceIds: string[];
+}
+
+export interface InvestigateResponse {
+  success: boolean;
+  answer: string;
+  claims: InvestigateClaim[];
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  evidence: InvestigateEvidence[];
+  referencedFiles: string[];
+  retrievedContextMetadata: {
+    totalFilesRetrieved: number;
+    totalLinesRetrieved: number;
+    totalCharactersRetrieved: number;
+    queryTermsUsed: string[];
+  };
+  error?: string;
+}
+
+
+
 
