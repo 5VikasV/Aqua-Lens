@@ -247,5 +247,67 @@ export interface InvestigateResponse {
   error?: string;
 }
 
+// Dynamic Change Plan Generator Types
+export type ChangePlanRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type ChangeStepType = 'Modify' | 'Create' | 'Update' | 'Migration';
+
+export interface ProposedDiffLine {
+  numBefore?: number;
+  numAfter?: number;
+  type: 'same' | 'add' | 'remove';
+  content: string;
+}
+
+export interface ProposedChangeStep {
+  stepNumber: number;
+  type: ChangeStepType;
+  filePath: string;
+  badgeText?: string;
+  isWarning?: boolean;
+  linesCount?: number;
+  description: string;
+  diffHeader?: string;
+  diffLines?: ProposedDiffLine[];
+  symbolsInvolved: string[];
+  prerequisiteSteps: number[];
+}
+
+export interface ChangePlanEvidenceReference {
+  id: string;
+  filePath: string;
+  lineRanges: { start: number; end: number }[];
+  matchedSymbols: string[];
+  relevanceScore: number;
+}
+
+export interface ChangePlanValidationResult {
+  allFilesExist: boolean;
+  invalidFiles: string[];
+  validatedSymbolsCount: number;
+  invalidSymbols: string[];
+}
+
+export interface ChangePlanRequest {
+  workspaceId: string;
+  changeRequest: string;
+}
+
+export interface ChangePlanResponse {
+  success: boolean;
+  planId: string;
+  title: string;
+  summary: string;
+  riskLevel: ChangePlanRiskLevel;
+  targetFiles: string[];
+  affectedFiles: string[];
+  steps: ProposedChangeStep[];
+  verificationSteps: string[];
+  evidenceReferences: ChangePlanEvidenceReference[];
+  validation: ChangePlanValidationResult;
+  warnings: string[];
+  error?: string;
+}
+
+
 
 

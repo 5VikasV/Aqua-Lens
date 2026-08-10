@@ -171,62 +171,61 @@ export const ImpactAnalysisView: React.FC<ImpactAnalysisViewProps> = ({
       )}
 
       {/* Header Bar */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-6 border-b border-outline-variant/30">
-        <div className="w-full lg:w-auto space-y-2">
-          <div className="text-xs font-label-caps text-on-surface-variant uppercase tracking-wider mb-1 flex items-center gap-2">
-            <span>Blast Radius Evaluation</span>
-            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-code-sm uppercase">
-              Live AST Backend
-            </span>
-          </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <h1 className="font-display-lg text-xl sm:text-2xl text-on-surface shrink-0">
-              Impact Analysis:
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-outline-variant/20">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-[20px]">monitoring</span>
+            <h1 className="font-headline-sm text-lg font-bold text-on-surface tracking-tight shrink-0">
+              Impact Analysis
             </h1>
-            
-            {/* Real Target Selector from analysisData.files */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              <select
-                value={selectedTarget}
-                onChange={(e) => setSelectedTarget(e.target.value)}
-                className="bg-surface-container border border-primary/40 text-primary font-code-md text-sm sm:text-base rounded-xl px-3 py-1.5 outline-none cursor-pointer hover:border-primary max-w-full sm:max-w-md truncate"
-              >
-                {filteredFiles.map((file) => (
-                  <option key={file.path} value={file.path}>
-                    {file.path} ({file.lineCount} LOC)
-                  </option>
-                ))}
-              </select>
-              {availableFiles.length > 5 && (
-                <div className="relative flex items-center">
-                  <span className="material-symbols-outlined absolute left-2.5 text-[16px] text-on-surface-variant">search</span>
-                  <input
-                    type="text"
-                    placeholder="Filter target..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="bg-surface-container border border-outline-variant/40 text-on-surface font-code-sm text-xs rounded-xl pl-8 pr-3 py-1.5 outline-none focus:border-primary w-full sm:w-44"
-                  />
-                </div>
-              )}
-            </div>
+          </div>
+          
+          <span className="text-on-surface-variant/30 hidden sm:inline">•</span>
+
+          {/* Real Target Selector from analysisData.files */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-on-surface-variant font-code-sm shrink-0">Target:</span>
+            <select
+              value={selectedTarget}
+              onChange={(e) => setSelectedTarget(e.target.value)}
+              className="bg-surface-container border border-primary/40 text-primary font-code-sm text-xs rounded-xl px-3 py-1.5 outline-none cursor-pointer hover:border-primary max-w-[260px] sm:max-w-xs truncate shadow-xs"
+            >
+              {filteredFiles.map((file) => (
+                <option key={file.path} value={file.path}>
+                  {file.path} ({file.lineCount} LOC)
+                </option>
+              ))}
+            </select>
+            {availableFiles.length > 5 && (
+              <div className="relative flex items-center">
+                <span className="material-symbols-outlined absolute left-2.5 text-[15px] text-on-surface-variant/60">search</span>
+                <input
+                  type="text"
+                  placeholder="Filter target..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-surface-container-low border border-outline-variant/30 text-on-surface font-code-sm text-xs rounded-xl pl-8 pr-3 py-1.5 outline-none focus:border-primary/60 w-36"
+                />
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-end lg:self-auto shrink-0">
+        {/* Header Action Buttons */}
+        <div className="flex items-center gap-2.5 shrink-0 self-end md:self-auto">
           <button
             onClick={handleShare}
-            className="px-4 py-2 bg-surface-container hover:bg-surface-variant border border-outline-variant/40 rounded-xl text-body-sm text-on-surface transition-colors flex items-center gap-2"
+            className="px-3.5 py-1.5 bg-surface-container hover:bg-surface-variant border border-outline-variant/30 rounded-xl text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-1.5"
           >
-            <span className="material-symbols-outlined text-[18px]">share</span>
-            Share Report
+            <span className="material-symbols-outlined text-[16px]">share</span>
+            <span>Share Report</span>
           </button>
           <button
             onClick={() => onSelectView('plan')}
-            className="px-5 py-2 bg-primary-container hover:bg-primary-fixed text-on-primary-container font-semibold rounded-xl text-body-sm transition-all shadow-md flex items-center gap-2"
+            className="px-4 py-1.5 bg-primary hover:bg-primary-fixed text-on-primary font-semibold rounded-xl text-xs transition-all shadow-xs flex items-center gap-1.5"
           >
-            <span className="material-symbols-outlined text-[18px]">checklist_rtl</span>
-            Generate Refactor Plan
+            <span className="material-symbols-outlined text-[16px]">checklist_rtl</span>
+            <span>Generate Refactor Plan</span>
           </button>
         </div>
       </div>
@@ -429,21 +428,21 @@ export const ImpactAnalysisView: React.FC<ImpactAnalysisViewProps> = ({
         </div>
 
         {/* Affected Files Sidebar */}
-        <div className="lg:col-span-5 bg-surface-container border border-outline-variant/40 rounded-3xl p-6 space-y-6 shadow-xl flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-surface-container border border-outline-variant/30 rounded-2xl p-5 space-y-4 shadow-lg flex flex-col justify-between">
           <div className="space-y-4">
-            <h3 className="font-headline-sm text-lg text-on-surface flex items-center justify-between">
+            <h3 className="font-headline-sm text-base font-semibold text-on-surface flex items-center justify-between">
               <span>Affected File Manifest</span>
-              <span className="text-xs font-code-sm text-on-surface-variant">
+              <span className="text-xs font-code-sm text-on-surface-variant/70">
                 {impactResult?.affectedFiles.length || 0} Files
               </span>
             </h3>
 
             {/* Requirement 9: Detail Inspector Card when a file is clicked */}
             {selectedDetailFile && (
-              <div className="p-4 bg-surface-container-high border border-primary/50 rounded-2xl space-y-2 animate-in fade-in zoom-in-95 duration-150 shadow-lg">
+              <div className="p-3.5 bg-surface-container-high border border-primary/40 rounded-xl space-y-2 animate-in fade-in zoom-in-95 duration-150 shadow-md">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-primary text-[18px]">info</span>
+                    <span className="material-symbols-outlined text-primary text-[16px]">info</span>
                     <span className="font-semibold text-xs text-primary font-code-sm uppercase tracking-wider">
                       Selected File Inspector
                     </span>
@@ -483,11 +482,15 @@ export const ImpactAnalysisView: React.FC<ImpactAnalysisViewProps> = ({
               </div>
             )}
 
-            {/* Requirement 9: Clickable affected files list */}
-            <div className="space-y-2 overflow-y-auto max-h-[400px] pr-1">
+            {/* Clickable affected files list */}
+            <div className="space-y-2 overflow-y-auto max-h-[380px] pr-1">
               {!impactResult || impactResult.affectedFiles.length === 0 ? (
-                <div className="p-6 bg-surface-container-low border border-outline-variant/30 rounded-2xl text-center text-xs text-on-surface-variant font-code-sm">
-                  {isLoading ? 'Loading manifest...' : 'No files affected by selected target.'}
+                <div className="py-6 px-4 bg-surface-container-low border border-outline-variant/20 rounded-xl text-center space-y-1.5">
+                  <span className="material-symbols-outlined text-emerald-400 text-[24px]">verified_user</span>
+                  <div className="text-xs font-semibold text-on-surface">Zero Dependent Files Impacted</div>
+                  <p className="text-[11px] text-on-surface-variant/70 max-w-xs mx-auto">
+                    {isLoading ? 'Calculating blast radius...' : 'No other files in this repository import or depend on the selected target.'}
+                  </p>
                 </div>
               ) : (
                 impactResult.affectedFiles.map((file) => {
@@ -496,15 +499,15 @@ export const ImpactAnalysisView: React.FC<ImpactAnalysisViewProps> = ({
                     <div
                       key={file.path}
                       onClick={() => handleSelectFile(file)}
-                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                      className={`p-3 rounded-xl border transition-all duration-150 cursor-pointer flex items-center justify-between relative ${
                         isSelected
-                          ? 'bg-primary/20 border-primary text-primary shadow-md ring-1 ring-primary'
+                          ? 'bg-primary/10 border-primary text-primary font-semibold before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-4 before:bg-primary before:rounded-r-full shadow-xs'
                           : file.isDirect
-                          ? 'bg-error-container/20 border-error/40 text-error hover:border-error hover:bg-error-container/30'
-                          : 'bg-surface-container-low border-outline-variant/30 text-on-surface hover:border-outline-variant hover:bg-surface-container-high'
+                          ? 'bg-error-container/15 border-error/30 text-error hover:border-error/60 hover:bg-error-container/25'
+                          : 'bg-surface-container-low border-outline-variant/25 text-on-surface-variant hover:border-outline-variant/50 hover:text-on-surface'
                       }`}
                     >
-                      <div className="flex items-center gap-3 truncate">
+                      <div className="flex items-center gap-3 truncate pl-1">
                         <span className="material-symbols-outlined text-[18px]">
                           {file.isDirect ? 'warning' : 'account_tree'}
                         </span>
@@ -531,7 +534,7 @@ export const ImpactAnalysisView: React.FC<ImpactAnalysisViewProps> = ({
           <div className="pt-2">
             <button
               onClick={() => onSelectView('plan')}
-              className="w-full py-2.5 bg-primary-container hover:bg-primary-fixed text-on-primary-container font-semibold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 font-semibold rounded-xl text-xs transition-all shadow-xs flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-[18px]">checklist_rtl</span>
               <span>Open Refactor Execution Plan</span>

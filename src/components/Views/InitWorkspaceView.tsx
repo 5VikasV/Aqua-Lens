@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { sampleRepositories } from '../../data/mockData';
-import { RepositoryInfo, ViewMode } from '../../types';
+import { sampleRepositories } from '../../data/repositoryPresets';
+import { ViewMode } from '../../types';
 
 interface InitWorkspaceViewProps {
   onStartAnalysis: (repoUrl: string) => void;
@@ -17,43 +17,21 @@ export const InitWorkspaceView: React.FC<InitWorkspaceViewProps> = ({
 }) => {
   const [urlInput, setUrlInput] = useState('https://github.com/expressjs/express');
   const [localError, setLocalError] = useState<string | null>(null);
-  const [currentRepoInfo, setCurrentRepoInfo] = useState<RepositoryInfo>({
-    url: 'https://github.com/expressjs/express',
-    owner: 'expressjs',
-    name: 'express',
-    description: 'Fast, unopinionated, minimalist web framework for node.',
-    isPublic: true,
-    stars: '65.2k',
-    forks: '16.1k',
-    lastCommit: 'Active',
-    language: 'JavaScript',
-    updatedAgo: 'Just now'
-  });
 
-  const handleInputChange = (value: string) => {
-    setUrlInput(value);
-    setLocalError(null);
-    const key = Object.keys(sampleRepositories).find(k => value.toLowerCase().includes(k.toLowerCase()));
-    if (key && sampleRepositories[key]) {
-      setCurrentRepoInfo(sampleRepositories[key]);
-    } else {
-      const parts = value.split('/');
-      const owner = parts[3] || 'owner';
-      const name = parts[4] ? parts[4].replace('.git', '') : 'repository';
-      setCurrentRepoInfo({
-        url: value,
-        owner,
-        name,
-        description: 'Discovered GitHub public repository. Ready for structural indexing.',
-        isPublic: true,
-        stars: '1.4k',
-        forks: '210',
-        lastCommit: '3 hrs ago',
-        language: 'TypeScript / JS',
-        updatedAgo: 'Just now'
-      });
+  const parseRepoFromUrl = (url: string) => {
+    try {
+      const trimmed = url.trim().replace(/\.git$/, '').replace(/\/$/, '');
+      const parts = trimmed.split('/');
+      if (parts.length >= 5 && parts[2].includes('github.com')) {
+        return { owner: parts[3], name: parts[4] };
+      }
+    } catch (e) {
+      // Fallback
     }
+    return { owner: 'repository', name: 'target' };
   };
+
+  const currentRepo = parseRepoFromUrl(urlInput);
 
   const validateUrl = (url: string): boolean => {
     const trimmed = url.trim();
@@ -78,9 +56,9 @@ export const InitWorkspaceView: React.FC<InitWorkspaceViewProps> = ({
 
   const selectRecent = (repoUrl: string) => {
     setUrlInput(repoUrl);
-    handleInputChange(repoUrl);
+    setLocalError(null);
     if (validateUrl(repoUrl)) {
-      onStartAnalysis(repoUrl);
+      onStartAnalysis(repoUrl.trim());
     }
   };
 
@@ -103,7 +81,7 @@ export const InitWorkspaceView: React.FC<InitWorkspaceViewProps> = ({
             Initialize Analysis Workspace
           </h1>
           <p className="text-body-md text-on-surface-variant max-w-xl mx-auto">
-            Provide a public GitHub repository URL to build a live dependency graph and analyze codebase structure.
+            Provide a public GitHub repository URL to build a live dependency graph and analyze codebase structure using the backend engine.
           </p>
         </div>
 
@@ -136,7 +114,10 @@ export const InitWorkspaceView: React.FC<InitWorkspaceViewProps> = ({
               <input
                 type="text"
                 value={urlInput}
-                onChange={(e) => handleInputChange(e.target.value)}
+                onChange={(e) => {
+                  setUrlInput(e.target.value);
+                  setLocalError(null);
+                }}
                 placeholder="https://github.com/organization/repository"
                 disabled={isAnalyzing}
                 className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-2xl py-3.5 pl-12 pr-36 font-code-md text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-inner disabled:opacity-60"
@@ -161,95 +142,72 @@ export const InitWorkspaceView: React.FC<InitWorkspaceViewProps> = ({
             </div>
           </div>
 
-          {/* Repository Live Preview Card */}
+          {/* Repository Target Preview Card */}
           <div className="p-5 bg-surface-container-low border border-outline-variant/30 rounded-2xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[22px]">folder_open</span>
                 <span className="font-headline-sm text-base text-on-surface">
-                  {currentRepoInfo.owner} / <span className="text-primary font-bold">{currentRepoInfo.name}</span>
+                  {currentRepo.owner} / <span className="text-primary font-bold">{currentRepo.name}</span>
                 </span>
               </div>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-code-sm uppercase">
-                {currentRepoInfo.isPublic ? 'Public' : 'Private'}
+                Ready for Analysis
               </span>
             </div>
 
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              {currentRepoInfo.description}
+              Real-time repository cloning and AST dependency extraction via backend service <code className="text-primary font-code-sm">POST /api/analyze</code>.
             </p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-              <div className="p-2.5 bg-surface-container rounded-xl border border-outline-variant/20 text-center">
-                <div className="text-[10px] text-on-surface-variant uppercase font-label-caps">Stars</div>
-                <div className="text-sm font-semibold text-on-surface font-code-sm">{currentRepoInfo.stars}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs font-code-sm">
+              <div className="p-2.5 bg-surface-container rounded-xl border border-outline-variant/20 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[16px]">account_tree</span>
+                <span className="text-on-surface">AST Dependency Extraction</span>
               </div>
-              <div className="p-2.5 bg-surface-container rounded-xl border border-outline-variant/20 text-center">
-                <div className="text-[10px] text-on-surface-variant uppercase font-label-caps">Forks</div>
-                <div className="text-sm font-semibold text-on-surface font-code-sm">{currentRepoInfo.forks}</div>
+              <div className="p-2.5 bg-surface-container rounded-xl border border-outline-variant/20 flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-300 text-[16px]">search_insights</span>
+                <span className="text-on-surface">Symbol Search & Indexing</span>
               </div>
-              <div className="p-2.5 bg-surface-container rounded-xl border border-outline-variant/20 text-center">
-                <div className="text-[10px] text-on-surface-variant uppercase font-label-caps">Language</div>
-                <div className="text-sm font-semibold text-primary font-code-sm">{currentRepoInfo.language}</div>
-              </div>
-              <div className="p-2.5 bg-surface-container rounded-xl border border-outline-variant/20 text-center">
-                <div className="text-[10px] text-on-surface-variant uppercase font-label-caps">Last Commit</div>
-                <div className="text-xs font-medium text-on-surface font-code-sm">{currentRepoInfo.lastCommit}</div>
+              <div className="p-2.5 bg-surface-container rounded-xl border border-outline-variant/20 flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-300 text-[16px]">psychology</span>
+                <span className="text-on-surface">Gemini AI Investigation</span>
               </div>
             </div>
           </div>
         </form>
 
-        {/* Quick Sample Repositories */}
+        {/* Quick Sample Repositories (Presets) */}
         <div className="space-y-4">
           <h3 className="font-headline-sm text-sm text-on-surface-variant uppercase tracking-wider font-label-caps">
-            Sample GitHub Repositories
+            Preset Public Repositories
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div 
-              onClick={() => selectRecent('https://github.com/expressjs/express')}
-              className="p-4 bg-surface-container border border-outline-variant/30 rounded-2xl hover:border-primary/50 transition-all cursor-pointer flex items-center justify-between group shadow-sm"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary font-bold">
-                  JS
-                </div>
-                <div>
-                  <div className="font-headline-sm text-sm text-on-surface group-hover:text-primary transition-colors">
-                    expressjs / express
+            {Object.entries(sampleRepositories).map(([key, repo]) => (
+              <div 
+                key={key}
+                onClick={() => selectRecent(repo.url)}
+                className="p-4 bg-surface-container border border-outline-variant/30 rounded-2xl hover:border-primary/50 transition-all cursor-pointer flex items-center justify-between group shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary font-bold">
+                    {repo.language === 'TypeScript' ? 'TS' : 'JS'}
                   </div>
-                  <div className="text-xs text-on-surface-variant font-code-sm">
-                    JavaScript • Minimalist Node.js framework
+                  <div>
+                    <div className="font-headline-sm text-sm text-on-surface group-hover:text-primary transition-colors">
+                      {repo.owner} / {repo.name}
+                    </div>
+                    <div className="text-xs text-on-surface-variant font-code-sm truncate max-w-[200px]">
+                      {repo.description}
+                    </div>
                   </div>
                 </div>
+                <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">
+                  chevron_right
+                </span>
               </div>
-              <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">
-                chevron_right
-              </span>
-            </div>
-
-            <div 
-              onClick={() => selectRecent('https://github.com/facebook/react')}
-              className="p-4 bg-surface-container border border-outline-variant/30 rounded-2xl hover:border-primary/50 transition-all cursor-pointer flex items-center justify-between group shadow-sm"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary font-bold">
-                  TS
-                </div>
-                <div>
-                  <div className="font-headline-sm text-sm text-on-surface group-hover:text-primary transition-colors">
-                    facebook / react
-                  </div>
-                  <div className="text-xs text-on-surface-variant font-code-sm">
-                    JavaScript/TypeScript • UI library
-                  </div>
-                </div>
-              </div>
-              <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">
-                chevron_right
-              </span>
-            </div>
+            ))}
           </div>
         </div>
 

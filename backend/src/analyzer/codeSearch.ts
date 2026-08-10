@@ -45,6 +45,9 @@ export const SCORE_CONFIG = {
   PHRASE_CONTENT_MATCH: 10,
   CONTENT_TERM_MAX_SCORE: 50,
 
+  QUERY_COVERAGE_MAX_SCORE: 80,
+  MAX_PROXIMITY_SCORE: 40,
+
   SOURCE_DIR_MULTIPLIER: 1.4,
   SOURCE_FILE_MULTIPLIER: 1.3,
   IMPLEMENTATION_INTENT_MULTIPLIER: 1.3,
@@ -268,14 +271,81 @@ export function searchCode(
     );
     rawScore += cappedContentScore;
 
-    // 4. Exclude Zero-Match Files
+    // 4. Distinct Query Term Coverage Calculation
+    const activeQueryTerms = filteredTerms.length > 0 ? filteredTerms : stems;
+    let matchedDistinctTermsCount = 0;
+    for (const term of activeQueryTerms) {
+      const termLower = term.toLowerCase();
+      const stem = stemWord(termLower);
+      const matched = Array.from(matchedTermsSet).some(m => {
+        const mLower = m.toLowerCase();
+        return mLower === termLower || mLower.includes(termLower) || termLower.includes(mLower) || mLower.includes(stem);
+      });
+      if (matched) {
+        matchedDistinctTermsCount++;
+      }
+    }
+    const totalQueryTermsCount = activeQueryTerms.length;
+    const coverageRatio = totalQueryTermsCount > 0 ? matchedDistinctTermsCount / totalQueryTermsCount : 0;
+    const coverageScore = Math.round(SCORE_CONFIG.QUERY_COVERAGE_MAX_SCORE * coverageRatio);
+    rawScore += coverageScore;
+
+    // 5. Multi-Term Proximity Window Scoring (20-line window)
+    let proximityScore = 0;
+    if (totalLines > 0 && activeQueryTerms.length > 1) {
+      const lineTermsMap: Map<number, Set<string>> = new Map();
+      for (let i = 0; i < totalLines; i++) {
+        const lineLower = lines[i].toLowerCase();
+        for (const term of activeQueryTerms) {
+          const termLower = term.toLowerCase();
+          const stem = stemWord(termLower);
+          if (lineLower.includes(termLower) || lineLower.includes(stem)) {
+            if (!lineTermsMap.has(i + 1)) lineTermsMap.set(i + 1, new Set());
+            lineTermsMap.get(i + 1)!.add(termLower);
+          }
+        }
+      }
+
+      const windowLines = Array.from(lineTermsMap.keys()).sort((a, b) => a - b);
+      let maxDistinctInWindow = 0;
+
+      for (let i = 0; i < windowLines.length; i++) {
+        const startLine = windowLines[i];
+        const termsInWindow = new Set<string>();
+        for (let j = i; j < windowLines.length && windowLines[j] <= startLine + 20; j++) {
+          const lineTerms = lineTermsMap.get(windowLines[j]);
+          if (lineTerms) {
+            lineTerms.forEach(t => termsInWindow.add(t));
+          }
+        }
+        if (termsInWindow.size > maxDistinctInWindow) {
+          maxDistinctInWindow = termsInWindow.size;
+        }
+      }
+
+      if (maxDistinctInWindow >= 4) {
+        proximityScore = 35;
+      } else if (maxDistinctInWindow === 3) {
+        proximityScore = 25;
+      } else if (maxDistinctInWindow === 2) {
+        proximityScore = 15;
+      }
+    }
+    proximityScore = Math.min(SCORE_CONFIG.MAX_PROXIMITY_SCORE, proximityScore);
+    rawScore += proximityScore;
+
+    // 6. Exclude Zero-Match Files
     if (rawScore <= 0 || matchedTermsSet.size === 0) {
       continue;
     }
 
-    // 5. Category & Path Multipliers
+    // 7. Category & Path Multipliers
     let multiplier = 1.0;
     const explanationParts: string[] = [];
+    explanationParts.push(`Coverage: ${matchedDistinctTermsCount}/${totalQueryTermsCount} (${(coverageRatio * 100).toFixed(0)}%) +${coverageScore}pts`);
+    if (proximityScore > 0) {
+      explanationParts.push(`Proximity +${proximityScore}pts`);
+    }
 
     // Changelog / Release History Penalty
     if (
@@ -339,7 +409,7 @@ export function searchCode(
       ? `Raw: ${rawScore}, ${explanationParts.join(', ')} -> Final: ${finalScore}`
       : `Raw: ${rawScore} -> Final: ${finalScore}`;
 
-    // 6. Snippet Quality Selection
+    // 8. Snippet Quality Selection
     const lineRanges = computeBestSnippets(
       Array.from(matchedLinesSet).sort((a, b) => a - b),
       Array.from(symbolMatchesSet),
@@ -364,7 +434,12 @@ export function searchCode(
       lineRanges,
       snippets,
       symbols,
-      rankingExplanation
+      rankingExplanation,
+      matchedDistinctTerms: matchedDistinctTermsCount,
+      totalQueryTerms: totalQueryTermsCount,
+      coverageRatio: Math.round(coverageRatio * 100) / 100,
+      coverageScore,
+      proximityScore
     });
   }
 

@@ -18,6 +18,7 @@ export function App() {
   const [selectedRepo, setSelectedRepo] = useState<string>('aqua-lens-web');
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
   // Real Backend Analysis State
   const [analysisData, setAnalysisData] = useState<AnalyzeResponse | null>(null);
@@ -135,16 +136,21 @@ export function App() {
             onSelectView={setCurrentView}
             selectedRepo={selectedRepo}
             onOpenRepoSelector={() => setCurrentView('init-workspace')}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           />
 
           {/* Top Search Header */}
           <TopSearchHeader
             onOpenSearch={() => setIsSearchOpen(true)}
             onOpenHelpModal={() => setIsHelpOpen(true)}
+            isCollapsed={isSidebarCollapsed}
           />
 
           {/* View Content Area */}
-          <main className="flex-1 ml-64 mt-16 p-6 lg:p-8 overflow-y-auto min-h-[calc(100vh-64px)]">
+          <main className={`flex-1 mt-16 p-6 lg:p-8 overflow-y-auto min-h-[calc(100vh-64px)] transition-[margin] duration-300 ease-in-out ${
+            isSidebarCollapsed ? 'ml-16' : 'ml-[260px]'
+          }`}>
             {currentView === 'overview' && (
               <OverviewView
                 repoName={selectedRepo}
@@ -178,6 +184,8 @@ export function App() {
 
             {currentView === 'plan' && (
               <ChangePlansView
+                workspaceId={analysisData?.workspaceId}
+                analysisData={analysisData}
                 onSelectView={setCurrentView}
               />
             )}

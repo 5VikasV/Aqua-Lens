@@ -9,7 +9,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "check": "tsc --noEmit",
-    "test": "tsx --test src/analyzer/__tests__/dependencyExtractor.test.ts src/analyzer/__tests__/impactAnalyzer.test.ts src/analyzer/__tests__/retrievalEngine.test.ts src/analyzer/__tests__/aiInvestigator.test.ts"
+    "test": "tsx --test src/analyzer/__tests__/dependencyExtractor.test.ts src/analyzer/__tests__/impactAnalyzer.test.ts src/analyzer/__tests__/retrievalEngine.test.ts src/analyzer/__tests__/aiInvestigator.test.ts src/analyzer/__tests__/workspaceStore.test.ts src/analyzer/__tests__/concurrency.test.ts src/analyzer/__tests__/planGenerator.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

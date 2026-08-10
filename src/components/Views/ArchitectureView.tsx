@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { architectureNodes } from '../../data/mockData';
-import { ViewMode, AnalyzeResponse, ArchitectureNode } from '../../types';
+import { ViewMode, AnalyzeResponse } from '../../types';
 
 interface ArchitectureViewProps {
   analysisData?: AnalyzeResponse | null;
@@ -13,6 +12,8 @@ interface DynamicGraphNode {
   language: string;
   lineCount: number;
   sizeBytes: number;
+  importsCount: number;
+  exportsCount: number;
   degree: number;
   x: number;
   y: number;
@@ -28,42 +29,33 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
   const [filters, setFilters] = useState({
     code: true,
     data: true,
-    docs: true,
-    packages: true
+    docs: true
   });
 
   const toggleFilter = (key: keyof typeof filters) => {
     setFilters(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Process Real Backend Dependency Graph or fallback to mockData
-  const { visibleNodes, visibleEdges, rawTotalNodes, rawTotalEdges } = useMemo(() => {
-    if (!analysisData || !analysisData.dependencyGraph) {
-      // Fallback mock graph
-      const mockAsDynamic: DynamicGraphNode[] = architectureNodes.map((n, i) => ({
-        id: n.id,
-        label: n.label,
-        language: 'TypeScript',
-        lineCount: 150,
-        sizeBytes: 4000,
-        degree: n.outgoingCount || 1,
-        x: n.x,
-        y: n.y,
-        type: n.type
-      }));
+  // Process Real Backend Dependency Graph from AnalyzeResponse
+  const { visibleNodes, visibleEdges, rawTotalNodes, rawTotalEdges, canvasWidth, canvasHeight } = useMemo(() => {
+    if (!analysisData || !analysisData.dependencyGraph || !analysisData.dependencyGraph.nodes) {
       return {
-        visibleNodes: mockAsDynamic,
+        visibleNodes: [],
         visibleEdges: [],
-        rawTotalNodes: architectureNodes.length,
-        rawTotalEdges: 5
+        rawTotalNodes: 0,
+        rawTotalEdges: 0,
+        canvasWidth: 1050,
+        canvasHeight: 650
       };
     }
 
     const backendGraph = analysisData.dependencyGraph;
-    const fileMap = new Map<string, { lineCount: number; sizeBytes: number; language: string }>();
+    const fileMap = new Map<string, { lineCount: number; sizeBytes: number; language: string; importsCount?: number; exportsCount?: number }>();
 
-    for (const f of analysisData.files) {
-      fileMap.set(f.path, f);
+    if (analysisData.files) {
+      for (const f of analysisData.files) {
+        fileMap.set(f.path, f);
+      }
     }
 
     // Calculate degree (incoming + outgoing connection count) for each node
@@ -73,12 +65,12 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
       nodeDegree.set(edge.target, (nodeDegree.get(edge.target) || 0) + 1);
     }
 
-    // Classify and sort nodes by relevance (degree descending, line count descending)
+    // Sort nodes by relevance (degree descending, line count descending)
     const sortedNodes = [...backendGraph.nodes].sort((a, b) => {
       const degA = nodeDegree.get(a.id) || 0;
       const degB = nodeDegree.get(b.id) || 0;
       if (degB !== degA) return degB - degA;
-      return b.lineCount - a.lineCount;
+      return (b.lineCount || 0) - (a.lineCount || 0);
     });
 
     // Apply search and category filter
@@ -86,10 +78,10 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
       if (searchQuery.trim() && !n.id.toLowerCase().includes(searchQuery.toLowerCase())) {
         return false;
       }
-      const lang = n.language.toLowerCase();
-      if (!filters.code && (lang.includes('javascript') || lang.includes('typescript') || lang.includes('python') || lang.includes('go'))) return false;
-      if (!filters.data && (lang.includes('json') || lang.includes('yaml') || lang.includes('sql'))) return false;
-      if (!filters.docs && (lang.includes('markdown') || lang.includes('text'))) return false;
+      const lang = (n.language || '').toLowerCase();
+      if (!filters.code && (lang.includes('typescript') || lang.includes('javascript') || lang.includes('python') || lang.includes('go') || lang.includes('code'))) return false;
+      if (!filters.data && (lang.includes('json') || lang.includes('yaml') || lang.includes('sql') || lang.includes('config'))) return false;
+      if (!filters.docs && (lang.includes('markdown') || lang.includes('text') || lang.includes('doc'))) return false;
       return true;
     });
 
@@ -103,20 +95,34 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
     const startX = 80;
     const startY = 80;
 
+    // Detect duplicate base filenames to show workspace path when colliding
+    const labelCounts = new Map<string, number>();
+    for (const n of sliced) {
+      const base = n.label || n.id.split('/').pop() || n.id;
+      labelCounts.set(base, (labelCounts.get(base) || 0) + 1);
+    }
+
     const dynamicNodes: DynamicGraphNode[] = sliced.map((n, idx) => {
       const col = idx % columns;
       const row = Math.floor(idx / columns);
       const fileInfo = fileMap.get(n.id);
+      const lang = n.language || fileInfo?.language || 'Code';
+
+      const baseLabel = n.label || n.id.split('/').pop() || n.id;
+      const isDuplicate = (labelCounts.get(baseLabel) || 0) > 1;
+
       return {
         id: n.id,
-        label: n.label || n.id.split('/').pop() || n.id,
-        language: n.language || 'Code',
+        label: isDuplicate ? n.id : baseLabel,
+        language: lang,
         lineCount: n.lineCount || fileInfo?.lineCount || 0,
         sizeBytes: n.sizeBytes || fileInfo?.sizeBytes || 0,
+        importsCount: fileInfo?.importsCount || 0,
+        exportsCount: fileInfo?.exportsCount || 0,
         degree: nodeDegree.get(n.id) || 0,
         x: startX + col * colSpacing,
         y: startY + row * rowSpacing,
-        type: n.language.includes('JSON') ? 'database' : n.language.includes('Markdown') ? 'util' : 'service'
+        type: lang.includes('JSON') || lang.includes('SQL') ? 'database' : lang.includes('Markdown') ? 'util' : 'service'
       };
     });
 
@@ -126,16 +132,47 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
       e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)
     );
 
+    // Compute exact SVG canvas dimensions from dynamic node grid bounds
+    const totalRows = Math.ceil(dynamicNodes.length / columns);
+    const canvasWidth = Math.max(1050, startX + columns * colSpacing + 120);
+    const canvasHeight = Math.max(650, startY + totalRows * rowSpacing + 120);
+
     return {
       visibleNodes: dynamicNodes,
       visibleEdges: dynamicEdges,
       rawTotalNodes: backendGraph.nodes.length,
-      rawTotalEdges: backendGraph.edges.length
+      rawTotalEdges: backendGraph.edges.length,
+      canvasWidth,
+      canvasHeight
     };
   }, [analysisData, nodeLimit, searchQuery, filters, layoutMode]);
 
   // Active selected node detail
   const selectedNode = visibleNodes.find(n => n.id === selectedNodeId) || visibleNodes[0];
+
+  // 1. Empty / No Workspace State
+  if (!analysisData || !analysisData.dependencyGraph || rawTotalNodes === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center max-w-xl mx-auto space-y-6">
+        <div className="w-16 h-16 rounded-3xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shadow-lg">
+          <span className="material-symbols-outlined text-[36px]">account_tree</span>
+        </div>
+        <div className="space-y-2">
+          <h2 className="font-display-lg text-2xl text-on-surface">No Architecture Topology Available</h2>
+          <p className="text-body-sm text-on-surface-variant leading-relaxed">
+            Analyze a GitHub repository to visualize real file nodes, AST dependency import edges, and interactive code topology.
+          </p>
+        </div>
+        <button
+          onClick={() => onSelectView('init-workspace')}
+          className="px-6 py-3 bg-primary-container hover:bg-primary-fixed text-on-primary-container font-semibold rounded-2xl text-body-sm transition-all shadow-md flex items-center gap-2"
+        >
+          <span className="material-symbols-outlined text-[20px]">cloud_download</span>
+          Analyze a Repository
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-[calc(100vh-80px)] flex flex-col font-body-md overflow-hidden bg-surface-container-lowest border border-outline-variant/30 rounded-3xl shadow-2xl">
@@ -163,7 +200,7 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
               onChange={() => toggleFilter('data')}
               className="rounded accent-primary"
             />
-            <span>Config / JSON</span>
+            <span>Config / Data</span>
           </label>
 
           <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-on-surface hover:text-primary">
@@ -173,7 +210,7 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
               onChange={() => toggleFilter('docs')}
               className="rounded accent-primary"
             />
-            <span>Markdown / Docs</span>
+            <span>Docs</span>
           </label>
         </div>
 
@@ -246,10 +283,18 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
         <div className="absolute inset-0 bg-[radial-gradient(#3a494b_1px,transparent_1px)] [background-size:20px_20px] opacity-25 pointer-events-none" />
 
         {/* Canvas & Connected Nodes */}
-        <div className="relative min-w-[900px] min-h-[600px] w-full h-full p-8">
+        <div 
+          className="relative p-8"
+          style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px` }}
+        >
           
           {/* Connecting SVG Lines */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <svg 
+            className="absolute inset-0 pointer-events-none"
+            width={canvasWidth}
+            height={canvasHeight}
+            viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+          >
             <defs>
               <linearGradient id="edgeLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="var(--color-primary-fixed)" stopOpacity="0.4" />
@@ -278,7 +323,7 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
                     y2={y2}
                     stroke="url(#edgeLineGrad)"
                     strokeWidth="2"
-                    strokeDasharray={edge.type === 'package' ? '4' : undefined}
+                    strokeDasharray={edge.type === 'relative' ? undefined : '4'}
                   />
                 </g>
               );
@@ -326,17 +371,16 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
               </div>
             );
           })}
+        </div>
 
-          {/* Bottom-Left Minimap */}
-          <div className="absolute bottom-6 left-6 w-48 h-28 bg-surface-container/90 border border-outline-variant/40 rounded-2xl p-2.5 shadow-2xl backdrop-blur-md flex flex-col justify-between z-20">
-            <div className="text-[10px] font-label-caps text-on-surface-variant uppercase">Minimap Overview</div>
-            <div className="relative w-full h-16 bg-surface-container-lowest rounded-xl border border-outline-variant/20 flex items-center justify-around p-1">
-              {visibleNodes.slice(0, 5).map((_, i) => (
-                <div key={i} className="w-2 h-2 rounded bg-primary opacity-80" />
-              ))}
-            </div>
+        {/* Bottom-Left Minimap (Viewport Fixed) */}
+        <div className="absolute bottom-6 left-6 w-48 h-28 bg-surface-container/90 border border-outline-variant/40 rounded-2xl p-2.5 shadow-2xl backdrop-blur-md flex flex-col justify-between z-20 pointer-events-none">
+          <div className="text-[10px] font-label-caps text-on-surface-variant uppercase">Minimap Overview</div>
+          <div className="relative w-full h-16 bg-surface-container-lowest rounded-xl border border-outline-variant/20 flex items-center justify-around p-1">
+            {visibleNodes.slice(0, 5).map((_, i) => (
+              <div key={i} className="w-2 h-2 rounded bg-primary opacity-80" />
+            ))}
           </div>
-
         </div>
 
         {/* Slide-In Node Detail Drawer (Right Side) */}
@@ -378,6 +422,19 @@ export const ArchitectureView: React.FC<ArchitectureViewProps> = ({ analysisData
                     <div className="font-semibold text-on-surface">{(selectedNode.sizeBytes / 1024).toFixed(1)} KB</div>
                   </div>
                 </div>
+
+                {(selectedNode.importsCount > 0 || selectedNode.exportsCount > 0) && (
+                  <div className="grid grid-cols-2 gap-2 text-xs font-code-sm">
+                    <div className="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/20">
+                      <div className="text-[10px] text-on-surface-variant uppercase font-label-caps">Imports</div>
+                      <div className="font-semibold text-primary">{selectedNode.importsCount}</div>
+                    </div>
+                    <div className="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/20">
+                      <div className="text-[10px] text-on-surface-variant uppercase font-label-caps">Exports</div>
+                      <div className="font-semibold text-emerald-300">{selectedNode.exportsCount}</div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="p-2.5 bg-surface-container-low rounded-xl border border-outline-variant/20 text-xs">
                   <div className="text-[10px] text-on-surface-variant uppercase font-label-caps">Graph Connections</div>

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { codebaseFindings } from '../../data/mockData';
-import { ViewMode, AnalyzeResponse } from '../../types';
+import { ViewMode, AnalyzeResponse, Finding } from '../../types';
 
 interface OverviewViewProps {
   repoName: string;
@@ -11,13 +10,33 @@ interface OverviewViewProps {
 export const OverviewView: React.FC<OverviewViewProps> = ({ repoName, analysisData, onSelectView }) => {
   const [copiedToast, setCopiedToast] = useState(false);
 
-  const displayRepoName = analysisData?.repository
-    ? `${analysisData.repository.owner}/${analysisData.repository.name}`
-    : repoName;
+  // If no repository has been analyzed, display a clean empty state
+  if (!analysisData || !analysisData.repository) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center max-w-xl mx-auto space-y-6">
+        <div className="w-16 h-16 rounded-3xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shadow-lg">
+          <span className="material-symbols-outlined text-[36px]">dashboard</span>
+        </div>
+        <div className="space-y-2">
+          <h2 className="font-display-lg text-2xl text-on-surface">No Workspace Analyzed Yet</h2>
+          <p className="text-body-sm text-on-surface-variant leading-relaxed">
+            Analyze a GitHub repository to inspect real language distribution, AST graph topology, package dependencies, file volume, and codebase metrics.
+          </p>
+        </div>
+        <button
+          onClick={() => onSelectView('init-workspace')}
+          className="px-6 py-3 bg-primary-container hover:bg-primary-fixed text-on-primary-container font-semibold rounded-2xl text-body-sm transition-all shadow-md flex items-center gap-2"
+        >
+          <span className="material-symbols-outlined text-[20px]">cloud_download</span>
+          Analyze a Repository
+        </button>
+      </div>
+    );
+  }
 
-  const repoUrl = analysisData?.repository?.url
-    ? analysisData.repository.url.replace(/\.git$/, '')
-    : `https://github.com/aqualens/${repoName}`;
+  // Derive metrics strictly from real AnalyzeResponse
+  const displayRepoName = `${analysisData.repository.owner}/${analysisData.repository.name}`;
+  const repoUrl = analysisData.repository.url.replace(/\.git$/, '');
 
   const handleCopyRepo = () => {
     navigator.clipboard.writeText(repoUrl);
@@ -25,26 +44,20 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ repoName, analysisDa
     setTimeout(() => setCopiedToast(false), 2000);
   };
 
-  // Real backend metrics
-  const totalFiles = analysisData ? analysisData.fileCount : 1420;
-  const totalLines = analysisData ? analysisData.metrics.totalLinesOfCode : 124500;
-  const totalSizeBytes = analysisData ? analysisData.metrics.totalSizeBytes : 4500000;
-  const totalDependencies = analysisData ? analysisData.dependencyCount : 84;
-  
-  const npmPackageCount = analysisData
-    ? Object.keys(analysisData.packageDependencies.dependencies || {}).length +
-      Object.keys(analysisData.packageDependencies.devDependencies || {}).length
-    : 24;
+  const totalFiles = analysisData.fileCount;
+  const totalLines = analysisData.metrics.totalLinesOfCode;
+  const totalSizeBytes = analysisData.metrics.totalSizeBytes;
+  const totalDependencies = analysisData.dependencyCount;
 
-  const topLanguages = analysisData?.languages?.slice(0, 4) || [
-    { language: 'JavaScript', percentage: 70, fileCount: 200, lineCount: 15000 },
-    { language: 'TypeScript', percentage: 20, fileCount: 50, lineCount: 4000 },
-    { language: 'Markdown', percentage: 10, fileCount: 10, lineCount: 800 }
-  ];
+  const npmPackageCount =
+    Object.keys(analysisData.packageDependencies?.dependencies || {}).length +
+    Object.keys(analysisData.packageDependencies?.devDependencies || {}).length;
+
+  const topLanguages = analysisData.languages?.slice(0, 4) || [];
 
   // Derive dynamic top directory modules from real analyzed files
   const topModulesMap = new Map<string, number>();
-  if (analysisData?.files) {
+  if (analysisData.files) {
     for (const f of analysisData.files) {
       const parts = f.path.split('/');
       const dirName = parts.length > 1 ? parts[0] : 'root';
@@ -56,11 +69,71 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ repoName, analysisDa
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4);
 
-  // Transparently calculated structure index (derived strictly from total files & dependency ratio)
-  const calculatedStructureScore = Math.min(
-    98,
-    Math.max(60, Math.round(100 - (totalDependencies > 500 ? 25 : totalDependencies / 20)))
+  // Calculated structure index derived strictly from AST parsing and import resolution metrics
+  const parseFailures = analysisData.metrics.parseFailuresCount || 0;
+  const unresolvedImports = analysisData.metrics.unresolvedImportsCount || 0;
+  const calculatedStructureScore = Math.max(
+    60,
+    Math.min(98, Math.round(100 - (parseFailures * 5 + unresolvedImports * 2)))
   );
+
+  // Deterministically derive real insights from actual backend metrics
+  const realInsights: Finding[] = [];
+
+  if (parseFailures > 0) {
+    realInsights.push({
+      id: 'insight-parse-failures',
+      severity: 'warning',
+      category: 'Architecture',
+      title: `${parseFailures} AST Parse Exception(s)`,
+      description: `${parseFailures} file(s) contained non-standard syntax or syntax constructs during AST parsing.`,
+      affectedPath: 'AST Parser'
+    });
+  }
+
+  if (unresolvedImports > 0) {
+    realInsights.push({
+      id: 'insight-unresolved-imports',
+      severity: 'warning',
+      category: 'Architecture',
+      title: `${unresolvedImports} Unresolved Import(s)`,
+      description: `${unresolvedImports} import statement(s) could not be mapped to relative files or package declarations.`,
+      affectedPath: 'Dependency Graph'
+    });
+  }
+
+  if (npmPackageCount > 0) {
+    realInsights.push({
+      id: 'insight-package-deps',
+      severity: 'info',
+      category: 'Architecture',
+      title: `${npmPackageCount} Package Dependencies`,
+      description: `Manifest contains ${npmPackageCount} package dependencies and ${analysisData.metrics.externalDependenciesCount || 0} external package import references.`,
+      affectedPath: 'package.json'
+    });
+  }
+
+  if (analysisData.metrics.internalDependenciesCount > 0) {
+    realInsights.push({
+      id: 'insight-internal-coupling',
+      severity: 'info',
+      category: 'Architecture',
+      title: `${analysisData.metrics.internalDependenciesCount} Internal Graph Links`,
+      description: `Discovered ${analysisData.metrics.internalDependenciesCount} internal module import edges across ${totalFiles} scanned files.`,
+      affectedPath: 'Graph Topology'
+    });
+  }
+
+  if (totalLines > 0) {
+    realInsights.push({
+      id: 'insight-codebase-scale',
+      severity: 'info',
+      category: 'Performance',
+      title: `${totalLines.toLocaleString()} Lines of Code`,
+      description: `Workspace contains ${totalLines.toLocaleString()} total lines of code (${(totalSizeBytes / 1024).toFixed(0)} KB scanned).`,
+      affectedPath: displayRepoName
+    });
+  }
 
   return (
     <div className="space-y-8 font-body-md">
@@ -78,11 +151,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ repoName, analysisDa
         <div>
           <div className="text-xs font-label-caps text-on-surface-variant uppercase tracking-wider mb-1 flex items-center gap-2">
             <span>Project Overview</span>
-            {analysisData && (
-              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-code-sm uppercase">
-                Real Backend Data
-              </span>
-            )}
+            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-code-sm uppercase">
+              Real Backend Data
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <h1 className="font-display-lg text-2xl sm:text-3xl text-on-surface font-code-md">
@@ -122,15 +193,19 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ repoName, analysisDa
         <div className="p-4 bg-surface-container border border-outline-variant/30 rounded-2xl space-y-2">
           <div className="text-xs text-on-surface-variant font-label-caps uppercase">Detected Languages</div>
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {topLanguages.map((lang, i) => (
-              <span
-                key={i}
-                className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-xs font-code-sm"
-                title={`${lang.lineCount.toLocaleString()} lines (${lang.percentage}%)`}
-              >
-                {lang.language} ({lang.percentage}%)
-              </span>
-            ))}
+            {topLanguages.length > 0 ? (
+              topLanguages.map((lang, i) => (
+                <span
+                  key={i}
+                  className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-xs font-code-sm"
+                  title={`${lang.lineCount.toLocaleString()} lines (${lang.percentage}%)`}
+                >
+                  {lang.language} ({lang.percentage}%)
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-on-surface-variant italic">No language data</span>
+            )}
           </div>
         </div>
 
@@ -160,10 +235,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ repoName, analysisDa
         <div className="p-4 bg-surface-container border border-outline-variant/30 rounded-2xl space-y-1">
           <div className="text-xs text-on-surface-variant font-label-caps uppercase">Scan Duration</div>
           <div className="font-headline-md text-xl text-primary font-code-md">
-            {analysisData ? `${(analysisData.metrics.analysisTimeMs / 1000).toFixed(1)}s` : '1.4s'}
+            {(analysisData.metrics.analysisTimeMs / 1000).toFixed(1)}s
           </div>
           <div className="text-[11px] text-emerald-400 font-code-sm">
-            {analysisData ? `${analysisData.metrics.totalFilesIgnored} ignored` : 'Shallow clone depth 1'}
+            {analysisData.metrics.totalFilesIgnored} files ignored
           </div>
         </div>
       </div>
@@ -178,7 +253,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ repoName, analysisDa
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-headline-sm text-lg text-on-surface">Parsed Structure Index</h3>
-                <div className="text-[11px] text-on-surface-variant">Heuristic metric based on file density and graph link ratio</div>
+                <div className="text-[11px] text-on-surface-variant">Metric derived from AST parsing success rate and import resolution</div>
               </div>
               <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-semibold">
                 Calculated Metric
@@ -271,24 +346,24 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ repoName, analysisDa
           </div>
         </div>
 
-        {/* Right Column: Important Findings */}
+        {/* Right Column: Dynamic Real Insights */}
         <div className="lg:col-span-5 bg-surface-container border border-outline-variant/40 rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-outline-variant/30">
               <h3 className="font-headline-sm text-lg text-on-surface flex items-center gap-2">
                 <span>Codebase Insights</span>
                 <span className="px-2 py-0.5 bg-primary/20 text-primary border border-primary/30 rounded text-xs font-code-sm">
-                  {codebaseFindings.length} Items
+                  {realInsights.length} Items
                 </span>
               </h3>
             </div>
 
             <div className="space-y-3 pt-3">
-              {codebaseFindings.map((finding) => (
+              {realInsights.map((finding) => (
                 <div
                   key={finding.id}
                   onClick={() => {
-                    if (finding.severity === 'critical') onSelectView('impact');
+                    if (finding.severity === 'critical' || finding.severity === 'warning') onSelectView('impact');
                     else onSelectView('investigate');
                   }}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 group ${

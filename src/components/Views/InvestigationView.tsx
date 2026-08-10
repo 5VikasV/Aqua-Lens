@@ -37,7 +37,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
       {
         id: 'welcome-1',
         role: 'assistant',
-        text: `Analysis workspace \`${workspaceId}\` is loaded and ready. Ask any question about application creation, request handling, or routing logic.`,
+        text: `Workspace \`${workspaceId}\` indexed. Ask any query about code logic, routing, or symbol definitions.`,
         confidence: 'HIGH'
       }
     ];
@@ -48,20 +48,26 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
   const [activeEvidenceList, setActiveEvidenceList] = useState<InvestigateEvidence[]>([]);
   const [activeEvidenceId, setActiveEvidenceId] = useState<string | null>(null);
 
-  const handleSendQuery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!queryInput.trim() || isTyping || !workspaceId) return;
+  const sampleQuestions = [
+    "How does Express create an application?",
+    "Where is routing implemented?",
+    "How are request query parameters parsed?"
+  ];
 
-    const userQuery = queryInput.trim();
+  const handleSendQuery = async (e?: React.FormEvent, overrideQuery?: string) => {
+    if (e) e.preventDefault();
+    const queryToSubmit = (overrideQuery || queryInput).trim();
+    if (!queryToSubmit || isTyping || !workspaceId) return;
+
     const userMsgId = `user-${Date.now()}`;
     setChatMessages(prev => [
       ...prev,
-      { id: userMsgId, role: 'user', text: userQuery }
+      { id: userMsgId, role: 'user', text: queryToSubmit }
     ]);
     setQueryInput('');
     setIsTyping(true);
 
-    const result = await analyzeInvestigationApi(workspaceId, userQuery);
+    const result = await analyzeInvestigationApi(workspaceId, queryToSubmit);
     setIsTyping(false);
 
     if (result.success) {
@@ -101,9 +107,9 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
   const currentEvidence = activeEvidenceList.find(e => e.id === activeEvidenceId) || activeEvidenceList[0];
 
   return (
-    <div className="space-y-6 font-body-md">
+    <div className="space-y-5 font-body-md">
       {/* Path Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-outline-variant/30">
+      <div className="flex items-center justify-between pb-3.5 border-b border-outline-variant/20">
         <div className="flex items-center gap-2 text-xs font-code-sm text-on-surface-variant">
           <span>/</span>
           <span>investigate</span>
@@ -113,9 +119,9 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {workspaceId ? (
-            <span className="px-3 py-1 bg-surface-container border border-outline-variant/40 rounded-lg text-xs font-code-sm text-primary flex items-center gap-1.5">
+            <span className="px-3 py-1 bg-surface-container border border-outline-variant/30 rounded-lg text-xs font-code-sm text-primary flex items-center gap-1.5 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span>Workspace: {workspaceId}</span>
             </span>
@@ -128,7 +134,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
 
           <button
             onClick={() => onSelectView('plan')}
-            className="px-4 py-1.5 bg-primary-container hover:bg-primary-fixed text-on-primary-container rounded-lg text-xs font-semibold transition-all flex items-center gap-1"
+            className="px-3.5 py-1.5 bg-primary hover:bg-primary-fixed text-on-primary rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-xs"
           >
             <span>Create Refactor Plan</span>
             <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
@@ -138,7 +144,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
 
       {/* No Workspace Active Warning Banner */}
       {!workspaceId && (
-        <div className="p-6 bg-surface-container border border-amber-500/30 rounded-3xl space-y-3 shadow-xl">
+        <div className="p-5 bg-surface-container border border-amber-500/30 rounded-2xl space-y-3 shadow-md">
           <div className="flex items-center gap-2 text-amber-400 font-headline-sm text-sm font-semibold">
             <span className="material-symbols-outlined text-[20px]">warning</span>
             <span>Analysis Workspace Unavailable</span>
@@ -159,24 +165,33 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
       )}
 
       {/* Main Grid: AI Terminal (Left) & Code Inspector (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[560px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-170px)] min-h-[580px]">
         {/* AI Terminal Chat Interface (Left Column) */}
-        <div className="lg:col-span-5 bg-surface-container border border-outline-variant/40 rounded-3xl p-6 flex flex-col justify-between shadow-xl">
-          <div className="space-y-6 overflow-y-auto max-h-[480px] pr-2">
-            <div className="flex items-center gap-2 text-primary pb-3 border-b border-outline-variant/20">
-              <span className="material-symbols-outlined text-[22px]">psychology</span>
-              <h3 className="font-headline-sm text-base text-on-surface">AI Code Inspector</h3>
+        <div className="lg:col-span-5 bg-surface-container border border-outline-variant/30 rounded-2xl flex flex-col overflow-hidden shadow-lg">
+          {/* Terminal Header */}
+          <div className="h-12 px-4 bg-surface-container-low border-b border-outline-variant/20 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2 text-primary">
+              <span className="material-symbols-outlined text-[18px]">terminal</span>
+              <h3 className="font-headline-sm text-xs font-semibold text-on-surface">AI Code Intelligence Terminal</h3>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-code-sm px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold">
+                AST Retrieval
+              </span>
+            </div>
+          </div>
 
+          {/* Conversation & Results Body */}
+          <div className="flex-1 p-4 space-y-4 overflow-y-auto">
             {chatMessages.map((msg) => (
-              <div key={msg.id} className="space-y-3">
+              <div key={msg.id} className="space-y-2.5">
                 {msg.role === 'user' ? (
-                  <div className="p-3.5 bg-surface-container-high rounded-2xl border border-outline-variant/30 text-xs font-body-md text-on-surface ml-6">
-                    <div className="text-[10px] text-primary font-code-sm uppercase mb-1">User Query</div>
+                  <div className="p-3 bg-surface-container-high rounded-xl border border-outline-variant/30 text-xs font-body-md text-on-surface ml-4">
+                    <div className="text-[10px] text-primary font-code-sm uppercase mb-1 font-semibold">User Query</div>
                     {msg.text}
                   </div>
                 ) : (
-                  <div className="p-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/40 space-y-3 shadow-sm">
+                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/30 space-y-2.5 shadow-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-primary font-code-sm font-semibold uppercase flex items-center gap-1">
                         <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
@@ -184,7 +199,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
                       </span>
                       {msg.confidence && (
                         <span
-                          className={`text-[10px] font-code-sm px-2 py-0.5 rounded-md border font-semibold ${
+                          className={`text-[10px] font-code-sm px-2 py-0.5 rounded border font-semibold ${
                             msg.confidence === 'HIGH'
                               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                               : msg.confidence === 'MEDIUM'
@@ -203,18 +218,18 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
 
                     {/* Error display */}
                     {msg.error && (
-                      <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 font-code-sm">
+                      <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-lg text-xs text-rose-300 font-code-sm">
                         {msg.error}
                       </div>
                     )}
 
-                    {/* Claims Section */}
+                    {/* Grounded Claims Section */}
                     {msg.claims && msg.claims.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-outline-variant/20">
-                        <div className="text-[10px] text-on-surface-variant font-label-caps uppercase">Grounded Claims:</div>
+                      <div className="space-y-1.5 pt-2 border-t border-outline-variant/15">
+                        <div className="text-[10px] text-on-surface-variant/70 font-label-caps uppercase font-semibold">Grounded Claims:</div>
                         <ul className="space-y-1.5">
                           {msg.claims.map((claim, cIdx) => (
-                            <li key={cIdx} className="text-xs text-on-surface-variant bg-surface-container/50 p-2 rounded-xl border border-outline-variant/20 space-y-1">
+                            <li key={cIdx} className="text-xs text-on-surface-variant bg-surface-container/40 p-2 rounded-lg border border-outline-variant/20 space-y-1">
                               <div>• {claim.text}</div>
                               {claim.evidenceIds && claim.evidenceIds.length > 0 && (
                                 <div className="flex flex-wrap gap-1 pt-1">
@@ -227,7 +242,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
                                           if (msg.evidence) setActiveEvidenceList(msg.evidence);
                                           setActiveEvidenceId(evId);
                                         }}
-                                        className="px-2 py-0.5 bg-primary-container/40 hover:bg-primary-container text-primary border border-primary/30 rounded text-[10px] font-code-sm transition-colors flex items-center gap-1"
+                                        className="px-2 py-0.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded text-[10px] font-code-sm transition-colors flex items-center gap-1"
                                       >
                                         <span className="material-symbols-outlined text-[12px]">description</span>
                                         <span>{matchedEv ? matchedEv.filePath : evId}</span>
@@ -244,8 +259,8 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
 
                     {/* Referenced Evidence Cards */}
                     {msg.evidence && msg.evidence.length > 0 && (
-                      <div className="space-y-1.5 pt-2 border-t border-outline-variant/20">
-                        <div className="text-[10px] text-on-surface-variant font-label-caps uppercase">Retrieved Evidence Cards:</div>
+                      <div className="space-y-1.5 pt-2 border-t border-outline-variant/15">
+                        <div className="text-[10px] text-on-surface-variant/70 font-label-caps uppercase font-semibold">Retrieved Evidence:</div>
                         <div className="flex flex-wrap gap-1.5">
                           {msg.evidence.map((ev) => (
                             <button
@@ -260,7 +275,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
                                   : 'bg-surface-container hover:bg-surface-variant text-primary border-primary/30'
                               }`}
                             >
-                              <span className="material-symbols-outlined text-[14px]">description</span>
+                              <span className="material-symbols-outlined text-[13px]">description</span>
                               <span>{ev.filePath}</span>
                             </button>
                           ))}
@@ -278,33 +293,60 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
                 Analyzing codebase AST & retrieved evidence...
               </div>
             )}
+
+            {/* Quick Sample Questions (Only when 1 welcome message present) */}
+            {workspaceId && chatMessages.length <= 1 && (
+              <div className="pt-2 space-y-2">
+                <div className="text-[10px] text-on-surface-variant/60 font-code-sm uppercase tracking-wider font-semibold">Suggested Queries:</div>
+                <div className="space-y-1.5">
+                  {sampleQuestions.map((q, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSendQuery(undefined, q)}
+                      className="w-full p-2.5 text-left bg-surface-container-low hover:bg-surface-container border border-outline-variant/20 hover:border-primary/40 rounded-xl text-xs text-on-surface-variant hover:text-primary transition-all flex items-center justify-between group"
+                    >
+                      <span>"{q}"</span>
+                      <span className="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Question Input Box */}
-          <form onSubmit={handleSendQuery} className="pt-4 border-t border-outline-variant/20 relative">
-            <input
-              type="text"
-              value={queryInput}
-              disabled={!workspaceId || isTyping}
-              onChange={(e) => setQueryInput(e.target.value)}
-              placeholder={workspaceId ? "Ask a question about application flow or symbols..." : "Analyze a repository first..."}
-              className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-xl py-3 pl-4 pr-12 text-xs font-code-md text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-            />
-            <button
-              type="submit"
-              disabled={!workspaceId || isTyping || !queryInput.trim()}
-              className="absolute right-2 top-6 p-1.5 bg-primary text-on-primary rounded-lg hover:bg-primary-fixed transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-[16px]">send</span>
-            </button>
+          {/* Integrated Anchored Composer (Bottom) */}
+          <form onSubmit={(e) => handleSendQuery(e)} className="p-3 bg-surface-container-low border-t border-outline-variant/20 shrink-0">
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                value={queryInput}
+                disabled={!workspaceId || isTyping}
+                onChange={(e) => setQueryInput(e.target.value)}
+                placeholder={workspaceId ? "Ask a question about application flow or symbols..." : "Analyze a repository first..."}
+                className="w-full h-[52px] bg-surface-container-lowest border border-outline-variant/30 rounded-xl pl-4 pr-24 text-xs font-code-md text-on-surface placeholder:text-on-surface-variant/60 focus:border-primary/60 focus:ring-1 focus:ring-primary/20 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              />
+              <div className="absolute right-2 flex items-center gap-2">
+                <span className="text-[10px] font-code-sm text-on-surface-variant/50 hidden sm:inline select-none">
+                  Press Enter ↵
+                </span>
+                <button
+                  type="submit"
+                  disabled={!workspaceId || isTyping || !queryInput.trim()}
+                  className="w-9 h-9 flex items-center justify-center bg-primary text-on-primary rounded-lg hover:bg-primary-fixed transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  title="Send Query"
+                >
+                  <span className="material-symbols-outlined text-[16px]">send</span>
+                </button>
+              </div>
+            </div>
           </form>
         </div>
 
         {/* Code Inspector (Right Column) */}
-        <div className="lg:col-span-7 bg-surface-container-lowest border border-outline-variant/40 rounded-3xl overflow-hidden shadow-xl flex flex-col">
+        <div className="lg:col-span-7 bg-surface-container-lowest border border-outline-variant/30 rounded-2xl overflow-hidden shadow-lg flex flex-col">
           {/* File Tabs Header */}
-          <div className="h-12 bg-surface-container-low px-4 flex items-center justify-between border-b border-outline-variant/30">
-            <div className="flex items-center gap-1 overflow-x-auto max-w-[80%] pr-2">
+          <div className="h-12 bg-surface-container-low px-4 flex items-center justify-between border-b border-outline-variant/20 shrink-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-[80%] pr-2">
               {activeEvidenceList.length > 0 ? (
                 activeEvidenceList.map((ev) => (
                   <button
@@ -312,7 +354,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
                     onClick={() => setActiveEvidenceId(ev.id)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-code-sm flex items-center gap-1.5 transition-colors whitespace-nowrap ${
                       (currentEvidence?.id === ev.id)
-                        ? 'bg-surface-container text-primary font-semibold border border-primary/30'
+                        ? 'bg-surface-container text-primary font-semibold border border-primary/30 shadow-xs'
                         : 'text-on-surface-variant hover:text-on-surface'
                     }`}
                   >
@@ -321,7 +363,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
                   </button>
                 ))
               ) : (
-                <div className="text-xs text-on-surface-variant/60 font-code-sm flex items-center gap-1">
+                <div className="text-xs text-on-surface-variant/60 font-code-sm flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px]">code</span>
                   <span>Code Inspector</span>
                 </div>
@@ -332,7 +374,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
               <div className="flex items-center gap-2 text-xs text-on-surface-variant">
                 <button
                   onClick={() => navigator.clipboard.writeText(currentEvidence.snippet)}
-                  className="p-1 hover:bg-surface-variant rounded text-on-surface-variant hover:text-primary transition-colors"
+                  className="p-1.5 hover:bg-surface-variant rounded-lg text-on-surface-variant hover:text-primary transition-colors"
                   title="Copy snippet"
                 >
                   <span className="material-symbols-outlined text-[18px]">content_copy</span>
@@ -343,13 +385,13 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
 
           {/* Syntax Highlighted Code Viewer */}
           {currentEvidence ? (
-            <div className="flex-1 flex flex-col justify-between">
+            <div className="flex-1 flex flex-col overflow-hidden">
               {/* Evidence File Info Bar */}
-              <div className="px-4 py-2 bg-surface-container/40 border-b border-outline-variant/20 flex flex-wrap items-center justify-between gap-2 text-xs font-code-sm">
+              <div className="px-4 py-2 bg-surface-container/40 border-b border-outline-variant/15 flex flex-wrap items-center justify-between gap-2 text-xs font-code-sm shrink-0">
                 <div className="flex items-center gap-2 text-on-surface">
                   <span className="text-primary font-semibold">{currentEvidence.filePath}</span>
                   {currentEvidence.lineRanges && currentEvidence.lineRanges.length > 0 && (
-                    <span className="text-on-surface-variant text-[11px]">
+                    <span className="text-on-surface-variant/70 text-[11px]">
                       (Lines {currentEvidence.lineRanges[0].start}-{currentEvidence.lineRanges[0].end})
                     </span>
                   )}
@@ -365,7 +407,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
               </div>
 
               {/* Code Snippet Output */}
-              <div className="p-4 flex-1 font-code-sm text-xs bg-surface-container-lowest overflow-x-auto space-y-1">
+              <div className="p-4 flex-1 font-code-sm text-xs bg-surface-container-lowest overflow-auto space-y-1">
                 {currentEvidence.snippet.split('\n').map((line, idx) => {
                   const startLine = currentEvidence.lineRanges && currentEvidence.lineRanges.length > 0
                     ? currentEvidence.lineRanges[0].start
@@ -387,8 +429,8 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({
             </div>
           ) : (
             <div className="p-12 flex-1 flex flex-col items-center justify-center text-center space-y-3">
-              <span className="material-symbols-outlined text-outline-variant text-[48px]">code</span>
-              <p className="text-xs text-on-surface-variant max-w-sm">
+              <span className="material-symbols-outlined text-outline-variant/50 text-[48px]">code</span>
+              <p className="text-xs text-on-surface-variant/70 max-w-sm leading-relaxed">
                 Ask a question in the AI Terminal to inspect actual repository source snippets, line numbers, and AST symbol references.
               </p>
             </div>

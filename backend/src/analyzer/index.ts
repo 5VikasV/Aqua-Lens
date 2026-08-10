@@ -1,4 +1,4 @@
-import { validateGitHubUrl } from './urlValidator.js';
+import { validateGitHubUrl, ValidatedUrl } from './urlValidator.js';
 import { cloneRepository } from './gitCloner.js';
 import { scanRepositoryFiles } from './fileScanner.js';
 import { extractDependencies } from './dependencyExtractor.js';
@@ -13,11 +13,15 @@ export * from './codeSearch.js';
 export * from './contextBuilder.js';
 export * from './workspaceStore.js';
 export * from './aiInvestigator.js';
+export * from './planGenerator.js';
+
+// In-flight repository analysis promise deduplication map
+const inFlightAnalyses = new Map<string, Promise<AnalyzeResponse>>();
 
 export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeResponse> {
   const startTime = Date.now();
 
-  // 1. Validate GitHub URL
+  // 1. Validate GitHub URL first
   const validation = validateGitHubUrl(repositoryUrl);
   if (!validation.isValid) {
     return {
@@ -51,7 +55,32 @@ export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeR
     };
   }
 
-  // 2. Clone Repository safely into temporary workspace
+  // Canonicalize URL to share in-flight promises for equivalent URLs
+  const canonicalKey = validation.normalizedUrl.toLowerCase().trim().replace(/\.git$/, '').replace(/\/$/, '');
+
+  // 2. Check if an analysis for this repository is already in-flight
+  if (inFlightAnalyses.has(canonicalKey)) {
+    return await inFlightAnalyses.get(canonicalKey)!;
+  }
+
+  // 3. Execute analysis and guarantee cleanup of the deduplication lock
+  const analysisPromise = (async () => {
+    try {
+      return await runAnalysisPipeline(validation, startTime);
+    } finally {
+      inFlightAnalyses.delete(canonicalKey);
+    }
+  })();
+
+  inFlightAnalyses.set(canonicalKey, analysisPromise);
+  return await analysisPromise;
+}
+
+async function runAnalysisPipeline(
+  validation: ValidatedUrl,
+  startTime: number
+): Promise<AnalyzeResponse> {
+  // Clone Repository safely into temporary workspace
   let cloneResult;
   try {
     cloneResult = await cloneRepository(validation.normalizedUrl);
@@ -88,10 +117,10 @@ export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeR
   }
 
   try {
-    // 3. Scan directory and extract file metrics
+    // Scan directory and extract file metrics
     const scan = await scanRepositoryFiles(cloneResult.targetPath);
 
-    // 4. Extract dependencies using AST and structured language parsers
+    // Extract dependencies using AST and structured language parsers
     const {
       graph,
       updatedFiles,
@@ -106,7 +135,7 @@ export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeR
       Object.keys(scan.packageDependencies.dependencies || {}).length +
       Object.keys(scan.packageDependencies.devDependencies || {}).length;
 
-    // 5. Extract AST symbols and build AnalysisWorkspace for lifetime retention
+    // Extract AST symbols and build AnalysisWorkspace for lifetime retention
     const symbolsByFile = new Map<string, ExtractedSymbol[]>();
     for (const [filePath, content] of scan.fileContents.entries()) {
       symbolsByFile.set(filePath, extractSymbols(content, filePath));
@@ -187,10 +216,9 @@ export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeR
       error: analysisErr.message || 'An error occurred during repository analysis'
     };
   } finally {
-    // 6. Cleanup temporary cloned repository files on disk
+    // Cleanup temporary cloned repository files on disk
     if (cloneResult && cloneResult.cleanup) {
       await cloneResult.cleanup();
     }
   }
 }
-

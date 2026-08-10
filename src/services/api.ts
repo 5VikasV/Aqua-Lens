@@ -1,4 +1,4 @@
-import { AnalyzeResponse, ImpactAnalysisRequest, ImpactAnalysisResult, InvestigateResponse } from '../types';
+import { AnalyzeResponse, ImpactAnalysisRequest, ImpactAnalysisResult, InvestigateResponse, ChangePlanResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -163,4 +163,55 @@ export async function analyzeInvestigationApi(
   }
 }
 
+export async function generateChangePlanApi(
+  workspaceId: string,
+  changeRequest: string
+): Promise<ChangePlanResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/plan/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ workspaceId, changeRequest })
+    });
 
+    const data: ChangePlanResponse = await response.json();
+
+    if (!response.ok || !data.success) {
+      return {
+        success: false,
+        planId: data.planId || 'PLAN-ERROR',
+        title: 'Plan Generation Error',
+        summary: data.error || `Server error (HTTP ${response.status})`,
+        riskLevel: 'LOW',
+        targetFiles: [],
+        affectedFiles: [],
+        steps: [],
+        verificationSteps: [],
+        evidenceReferences: [],
+        validation: { allFilesExist: false, invalidFiles: [], validatedSymbolsCount: 0, invalidSymbols: [] },
+        warnings: [],
+        error: data.error || `Server responded with HTTP ${response.status}: ${response.statusText}`
+      };
+    }
+
+    return data;
+  } catch (error: any) {
+    return {
+      success: false,
+      planId: 'PLAN-NET-ERR',
+      title: 'Connection Error',
+      summary: `Cannot connect to backend server at ${API_BASE_URL}. Make sure backend server is running.`,
+      riskLevel: 'LOW',
+      targetFiles: [],
+      affectedFiles: [],
+      steps: [],
+      verificationSteps: [],
+      evidenceReferences: [],
+      validation: { allFilesExist: false, invalidFiles: [], validatedSymbolsCount: 0, invalidSymbols: [] },
+      warnings: [],
+      error: `Cannot connect to backend server at ${API_BASE_URL}. Make sure the backend server is running.`
+    };
+  }
+}

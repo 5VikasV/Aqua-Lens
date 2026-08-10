@@ -3,14 +3,18 @@ import React from 'react';
 interface TopSearchHeaderProps {
   onOpenSearch: () => void;
   onOpenHelpModal: () => void;
+  isCollapsed?: boolean;
 }
 
 export const TopSearchHeader: React.FC<TopSearchHeaderProps> = ({
   onOpenSearch,
-  onOpenHelpModal
+  onOpenHelpModal,
+  isCollapsed = false
 }) => {
   return (
-    <header className="fixed top-0 left-64 right-0 h-16 bg-surface-container/80 backdrop-blur-xl border-b border-outline-variant/30 z-40 flex items-center justify-between px-lg">
+    <header className={`fixed top-0 right-0 h-16 bg-surface-container/80 backdrop-blur-xl border-b border-outline-variant/30 z-40 flex items-center justify-between px-lg transition-[left] duration-300 ease-in-out ${
+      isCollapsed ? 'left-16' : 'left-[260px]'
+    }`}>
       <div className="flex-1 max-w-xl">
         <button
           onClick={onOpenSearch}

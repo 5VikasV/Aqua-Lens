@@ -5,6 +5,7 @@ import healthRoutes from './routes/health.routes.js';
 import analyzeRoutes from './routes/analyze.routes.js';
 import impactRoutes from './routes/impact.routes.js';
 import investigateRoutes from './routes/investigate.routes.js';
+import planRoutes from './routes/plan.routes.js';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use('/api', healthRoutes);
 app.use('/api', analyzeRoutes);
 app.use('/api', impactRoutes);
 app.use('/api', investigateRoutes);
+app.use('/api', planRoutes);
 
 // Global Error Handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

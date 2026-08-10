@@ -209,5 +209,75 @@ test('Code Retrieval & Context Engine v2 Test Suite', async (t) => {
     assert.equal(results.length, 1);
     assert.equal(results[0].filePath, 'test/onlyTestEvidence.test.ts'); // Test evidence returned when no production files exist
   });
+
+  await t.test('14. Regression: repeated generic term vs broad semantic coverage', () => {
+    const testWs: SearchableWorkspace = {
+      files: [
+        { path: 'src/repetitive.ts', extension: '.ts', language: 'TypeScript', sizeBytes: 500, lineCount: 50, importsCount: 0, exportsCount: 1 },
+        { path: 'src/architecturalTarget.ts', extension: '.ts', language: 'TypeScript', sizeBytes: 500, lineCount: 50, importsCount: 0, exportsCount: 1 }
+      ],
+      fileContents: new Map([
+        ['src/repetitive.ts', [
+          'export function handleOptions() {',
+          '  const options = {};',
+          '  const option1 = options.option1;',
+          '  const option2 = options.option2;',
+          '  const option3 = options.option3;',
+          '  return options;',
+          '}'
+        ].join('\n')],
+        ['src/architecturalTarget.ts', [
+          'export function configureApplication() {',
+          '  // Add CORS middleware configuration options to the main application',
+          '  const application = {};',
+          '  const middleware = {};',
+          '  const configuration = {};',
+          '  const options = {};',
+          '  return { application, middleware, configuration, options };',
+          '}'
+        ].join('\n')]
+      ])
+    };
+
+    const query = 'Add CORS middleware configuration options to the main application';
+    const results = searchCode(testWs, query);
+    assert.ok(results.length >= 2);
+    // Candidate matching 6/7 distinct query terms outranks candidate matching 1 repeated term
+    assert.equal(results[0].filePath, 'src/architecturalTarget.ts');
+    assert.ok((results[0].coverageRatio || 0) > (results[1].coverageRatio || 0));
+  });
+
+  await t.test('15. Regression: multi-term proximity bonus', () => {
+    const testWs: SearchableWorkspace = {
+      files: [
+        { path: 'src/clustered.ts', extension: '.ts', language: 'TypeScript', sizeBytes: 300, lineCount: 20, importsCount: 0, exportsCount: 1 },
+        { path: 'src/scattered.ts', extension: '.ts', language: 'TypeScript', sizeBytes: 300, lineCount: 200, importsCount: 0, exportsCount: 1 }
+      ],
+      fileContents: new Map([
+        ['src/clustered.ts', [
+          'function setup() {',
+          '  // application middleware configuration options clustered in window',
+          '  const app = application(middleware(configuration(options)));',
+          '}'
+        ].join('\n')],
+        ['src/scattered.ts', [
+          '// application',
+          ...Array(60).fill('// line padding'),
+          '// middleware',
+          ...Array(60).fill('// line padding'),
+          '// configuration',
+          ...Array(60).fill('// line padding'),
+          '// options'
+        ].join('\n')]
+      ])
+    };
+
+    const query = 'application middleware configuration options';
+    const results = searchCode(testWs, query);
+    assert.ok(results.length >= 2);
+    // Clustered file receives proximity bonus and outranks scattered file
+    assert.equal(results[0].filePath, 'src/clustered.ts');
+    assert.ok((results[0].proximityScore || 0) > (results[1].proximityScore || 0));
+  });
 });
 
