@@ -1,0 +1,6 @@
+{
+  "name": "Aqua Lens",
+  "description": "Codebase intelligence and interactive architecture maps, deep dependency insights, and impact analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

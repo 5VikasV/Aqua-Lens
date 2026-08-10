@@ -1,0 +1,27 @@
+{
+  "name": "aqua-lens-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend engine for Aqua Lens codebase analysis and dependency graph extraction",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "check": "tsc --noEmit",
+    "test": "tsx --test src/analyzer/__tests__/dependencyExtractor.test.ts src/analyzer/__tests__/impactAnalyzer.test.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "simple-git": "^3.27.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.2"
+  }
+}
