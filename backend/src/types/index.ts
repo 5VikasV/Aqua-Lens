@@ -70,6 +70,7 @@ export interface AnalysisSummary {
 
 export interface AnalyzeResponse {
   success: boolean;
+  workspaceId?: string;
   repository: RepositoryInfo;
   languages: LanguageMetric[];
   fileCount: number;

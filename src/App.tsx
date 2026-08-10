@@ -162,6 +162,8 @@ export function App() {
 
             {currentView === 'investigate' && (
               <InvestigationView
+                workspaceId={analysisData?.workspaceId}
+                analysisData={analysisData}
                 onSelectView={setCurrentView}
               />
             )}

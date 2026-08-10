@@ -1,66 +1,131 @@
 import React, { useState } from 'react';
-import { sampleCodeAuthService } from '../../data/mockData';
-import { ViewMode } from '../../types';
+import { AnalyzeResponse, InvestigateClaim, InvestigateEvidence, ViewMode } from '../../types';
+import { analyzeInvestigationApi } from '../../services/api';
 
 interface InvestigationViewProps {
   onSelectView: (view: ViewMode) => void;
+  workspaceId?: string;
+  analysisData?: AnalyzeResponse | null;
 }
 
-export const InvestigationView: React.FC<InvestigationViewProps> = ({ onSelectView }) => {
-  const [activeTab, setActiveTab] = useState<'auth.service.ts' | 'jwt.strategy.ts'>('auth.service.ts');
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  claims?: InvestigateClaim[];
+  evidence?: InvestigateEvidence[];
+  referencedFiles?: string[];
+  metadata?: {
+    totalFilesRetrieved: number;
+    totalLinesRetrieved: number;
+    totalCharactersRetrieved: number;
+    queryTermsUsed: string[];
+  };
+  error?: string;
+}
+
+export const InvestigationView: React.FC<InvestigationViewProps> = ({
+  onSelectView,
+  workspaceId,
+  analysisData
+}) => {
   const [queryInput, setQueryInput] = useState('');
-  const [chatMessages, setChatMessages] = useState([
-    {
-      role: 'user',
-      text: 'How does authentication work in this project?'
-    },
-    {
-      role: 'assistant',
-      text: 'Authentication is handled primarily by `AuthService` using signed JWT tokens with standard HTTP Bearer headers. When `AuthController.login()` is invoked, credentials are validated and `generateToken()` creates an encrypted payload containing user ID and roles.',
-      contextFiles: ['auth.service.ts', 'jwt.strategy.ts', 'user.repository.ts']
-    }
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    if (!workspaceId) return [];
+    return [
+      {
+        id: 'welcome-1',
+        role: 'assistant',
+        text: `Analysis workspace \`${workspaceId}\` is loaded and ready. Ask any question about application creation, request handling, or routing logic.`,
+        confidence: 'HIGH'
+      }
+    ];
+  });
   const [isTyping, setIsTyping] = useState(false);
 
-  const handleSendQuery = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!queryInput.trim() || isTyping) return;
+  // Real Code Inspector Evidence State
+  const [activeEvidenceList, setActiveEvidenceList] = useState<InvestigateEvidence[]>([]);
+  const [activeEvidenceId, setActiveEvidenceId] = useState<string | null>(null);
 
-    const userMsg = queryInput.trim();
-    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+  const handleSendQuery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!queryInput.trim() || isTyping || !workspaceId) return;
+
+    const userQuery = queryInput.trim();
+    const userMsgId = `user-${Date.now()}`;
+    setChatMessages(prev => [
+      ...prev,
+      { id: userMsgId, role: 'user', text: userQuery }
+    ]);
     setQueryInput('');
     setIsTyping(true);
 
-    setTimeout(() => {
+    const result = await analyzeInvestigationApi(workspaceId, userQuery);
+    setIsTyping(false);
+
+    if (result.success) {
+      const assistantMsgId = `assistant-${Date.now()}`;
       setChatMessages(prev => [
         ...prev,
         {
+          id: assistantMsgId,
           role: 'assistant',
-          text: `Analysis for "${userMsg}": The authentication pipeline injects \`JwtStrategy\` into protected NestJS routes using Passport middleware. Token validation checks expiration and verifies secret keys configured in \`auth.config.ts\`.`,
-          contextFiles: ['auth.service.ts', 'jwt.strategy.ts']
+          text: result.answer,
+          confidence: result.confidence,
+          claims: result.claims,
+          evidence: result.evidence,
+          referencedFiles: result.referencedFiles,
+          metadata: result.retrievedContextMetadata
         }
       ]);
-      setIsTyping(false);
-    }, 1200);
+
+      if (result.evidence && result.evidence.length > 0) {
+        setActiveEvidenceList(result.evidence);
+        setActiveEvidenceId(result.evidence[0].id);
+      }
+    } else {
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          text: result.answer || 'An error occurred during investigation.',
+          confidence: 'LOW',
+          error: result.error || 'Failed to retrieve code investigation'
+        }
+      ]);
+    }
   };
+
+  const currentEvidence = activeEvidenceList.find(e => e.id === activeEvidenceId) || activeEvidenceList[0];
 
   return (
     <div className="space-y-6 font-body-md">
-      
       {/* Path Header */}
       <div className="flex items-center justify-between pb-4 border-b border-outline-variant/30">
         <div className="flex items-center gap-2 text-xs font-code-sm text-on-surface-variant">
           <span>/</span>
           <span>investigate</span>
           <span>/</span>
-          <span className="text-primary font-semibold">auth_flow_analysis</span>
+          <span className="text-primary font-semibold">
+            {workspaceId ? workspaceId : 'no_workspace_selected'}
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 bg-surface-container border border-outline-variant/40 rounded-lg text-xs font-code-sm text-primary flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <span>Context: 4 files analyzed</span>
-          </span>
+          {workspaceId ? (
+            <span className="px-3 py-1 bg-surface-container border border-outline-variant/40 rounded-lg text-xs font-code-sm text-primary flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span>Workspace: {workspaceId}</span>
+            </span>
+          ) : (
+            <span className="px-3 py-1 bg-rose-500/10 border border-rose-500/30 rounded-lg text-xs font-code-sm text-rose-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
+              <span>Workspace Unavailable</span>
+            </span>
+          )}
+
           <button
             onClick={() => onSelectView('plan')}
             className="px-4 py-1.5 bg-primary-container hover:bg-primary-fixed text-on-primary-container rounded-lg text-xs font-semibold transition-all flex items-center gap-1"
@@ -71,9 +136,30 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({ onSelectVi
         </div>
       </div>
 
+      {/* No Workspace Active Warning Banner */}
+      {!workspaceId && (
+        <div className="p-6 bg-surface-container border border-amber-500/30 rounded-3xl space-y-3 shadow-xl">
+          <div className="flex items-center gap-2 text-amber-400 font-headline-sm text-sm font-semibold">
+            <span className="material-symbols-outlined text-[20px]">warning</span>
+            <span>Analysis Workspace Unavailable</span>
+          </div>
+          <p className="text-xs text-on-surface-variant leading-relaxed">
+            No active repository workspace found in memory. AI Codebase Investigation requires an analyzed workspace. Please analyze a repository first.
+          </p>
+          <div className="pt-1">
+            <button
+              onClick={() => onSelectView('init-workspace')}
+              className="px-4 py-2 bg-primary text-on-primary rounded-xl text-xs font-semibold hover:bg-primary-fixed transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              <span>Analyze Repository</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Grid: AI Terminal (Left) & Code Inspector (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[560px]">
-        
         {/* AI Terminal Chat Interface (Left Column) */}
         <div className="lg:col-span-5 bg-surface-container border border-outline-variant/40 rounded-3xl p-6 flex flex-col justify-between shadow-xl">
           <div className="space-y-6 overflow-y-auto max-h-[480px] pr-2">
@@ -82,8 +168,8 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({ onSelectVi
               <h3 className="font-headline-sm text-base text-on-surface">AI Code Inspector</h3>
             </div>
 
-            {chatMessages.map((msg, idx) => (
-              <div key={idx} className="space-y-3">
+            {chatMessages.map((msg) => (
+              <div key={msg.id} className="space-y-3">
                 {msg.role === 'user' ? (
                   <div className="p-3.5 bg-surface-container-high rounded-2xl border border-outline-variant/30 text-xs font-body-md text-on-surface ml-6">
                     <div className="text-[10px] text-primary font-code-sm uppercase mb-1">User Query</div>
@@ -96,25 +182,86 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({ onSelectVi
                         <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
                         Aqua Lens Assistant
                       </span>
-                      <span className="text-[10px] text-on-surface-variant font-code-sm">100% confidence</span>
+                      {msg.confidence && (
+                        <span
+                          className={`text-[10px] font-code-sm px-2 py-0.5 rounded-md border font-semibold ${
+                            msg.confidence === 'HIGH'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : msg.confidence === 'MEDIUM'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                          }`}
+                        >
+                          {msg.confidence} Confidence
+                        </span>
+                      )}
                     </div>
 
-                    <p className="text-xs text-on-surface leading-relaxed">
+                    <p className="text-xs text-on-surface leading-relaxed whitespace-pre-line">
                       {msg.text}
                     </p>
 
-                    {msg.contextFiles && (
+                    {/* Error display */}
+                    {msg.error && (
+                      <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 font-code-sm">
+                        {msg.error}
+                      </div>
+                    )}
+
+                    {/* Claims Section */}
+                    {msg.claims && msg.claims.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-outline-variant/20">
+                        <div className="text-[10px] text-on-surface-variant font-label-caps uppercase">Grounded Claims:</div>
+                        <ul className="space-y-1.5">
+                          {msg.claims.map((claim, cIdx) => (
+                            <li key={cIdx} className="text-xs text-on-surface-variant bg-surface-container/50 p-2 rounded-xl border border-outline-variant/20 space-y-1">
+                              <div>• {claim.text}</div>
+                              {claim.evidenceIds && claim.evidenceIds.length > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {claim.evidenceIds.map(evId => {
+                                    const matchedEv = msg.evidence?.find(e => e.id === evId);
+                                    return (
+                                      <button
+                                        key={evId}
+                                        onClick={() => {
+                                          if (msg.evidence) setActiveEvidenceList(msg.evidence);
+                                          setActiveEvidenceId(evId);
+                                        }}
+                                        className="px-2 py-0.5 bg-primary-container/40 hover:bg-primary-container text-primary border border-primary/30 rounded text-[10px] font-code-sm transition-colors flex items-center gap-1"
+                                      >
+                                        <span className="material-symbols-outlined text-[12px]">description</span>
+                                        <span>{matchedEv ? matchedEv.filePath : evId}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Referenced Evidence Cards */}
+                    {msg.evidence && msg.evidence.length > 0 && (
                       <div className="space-y-1.5 pt-2 border-t border-outline-variant/20">
-                        <div className="text-[10px] text-on-surface-variant font-label-caps uppercase">Linked Context Cards:</div>
+                        <div className="text-[10px] text-on-surface-variant font-label-caps uppercase">Retrieved Evidence Cards:</div>
                         <div className="flex flex-wrap gap-1.5">
-                          {msg.contextFiles.map((f, i) => (
+                          {msg.evidence.map((ev) => (
                             <button
-                              key={i}
-                              onClick={() => setActiveTab(f as any)}
-                              className="px-2.5 py-1 bg-surface-container hover:bg-surface-variant text-primary border border-primary/30 rounded-lg text-xs font-code-sm flex items-center gap-1 transition-colors"
+                              key={ev.id}
+                              onClick={() => {
+                                if (msg.evidence) setActiveEvidenceList(msg.evidence);
+                                setActiveEvidenceId(ev.id);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-code-sm flex items-center gap-1 transition-colors border ${
+                                activeEvidenceId === ev.id
+                                  ? 'bg-primary text-on-primary border-primary font-semibold'
+                                  : 'bg-surface-container hover:bg-surface-variant text-primary border-primary/30'
+                              }`}
                             >
                               <span className="material-symbols-outlined text-[14px]">description</span>
-                              <span>{f}</span>
+                              <span>{ev.filePath}</span>
                             </button>
                           ))}
                         </div>
@@ -128,7 +275,7 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({ onSelectVi
             {isTyping && (
               <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/30 text-xs text-primary font-code-sm animate-pulse flex items-center gap-2">
                 <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
-                Analyzing AST symbol references...
+                Analyzing codebase AST & retrieved evidence...
               </div>
             )}
           </div>
@@ -138,13 +285,15 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({ onSelectVi
             <input
               type="text"
               value={queryInput}
+              disabled={!workspaceId || isTyping}
               onChange={(e) => setQueryInput(e.target.value)}
-              placeholder="Ask a question about auth flow or symbols..."
-              className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-xl py-3 pl-4 pr-12 text-xs font-code-md text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none"
+              placeholder={workspaceId ? "Ask a question about application flow or symbols..." : "Analyze a repository first..."}
+              className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-xl py-3 pl-4 pr-12 text-xs font-code-md text-on-surface placeholder:text-on-surface-variant/50 focus:border-primary focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
-              className="absolute right-2 top-6 p-1.5 bg-primary text-on-primary rounded-lg hover:bg-primary-fixed transition-colors"
+              disabled={!workspaceId || isTyping || !queryInput.trim()}
+              className="absolute right-2 top-6 p-1.5 bg-primary text-on-primary rounded-lg hover:bg-primary-fixed transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-[16px]">send</span>
             </button>
@@ -155,60 +304,96 @@ export const InvestigationView: React.FC<InvestigationViewProps> = ({ onSelectVi
         <div className="lg:col-span-7 bg-surface-container-lowest border border-outline-variant/40 rounded-3xl overflow-hidden shadow-xl flex flex-col">
           {/* File Tabs Header */}
           <div className="h-12 bg-surface-container-low px-4 flex items-center justify-between border-b border-outline-variant/30">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setActiveTab('auth.service.ts')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-code-sm flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'auth.service.ts' ? 'bg-surface-container text-primary font-semibold border border-primary/30' : 'text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]">description</span>
-                <span>src/services/auth.service.ts</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('jwt.strategy.ts')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-code-sm flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'jwt.strategy.ts' ? 'bg-surface-container text-primary font-semibold border border-primary/30' : 'text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]">description</span>
-                <span>src/strategies/jwt.strategy.ts</span>
-              </button>
+            <div className="flex items-center gap-1 overflow-x-auto max-w-[80%] pr-2">
+              {activeEvidenceList.length > 0 ? (
+                activeEvidenceList.map((ev) => (
+                  <button
+                    key={ev.id}
+                    onClick={() => setActiveEvidenceId(ev.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-code-sm flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+                      (currentEvidence?.id === ev.id)
+                        ? 'bg-surface-container text-primary font-semibold border border-primary/30'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">description</span>
+                    <span>{ev.filePath}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="text-xs text-on-surface-variant/60 font-code-sm flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px]">code</span>
+                  <span>Code Inspector</span>
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-on-surface-variant">
-              <button
-                onClick={() => navigator.clipboard.writeText(sampleCodeAuthService)}
-                className="p-1 hover:bg-surface-variant rounded text-on-surface-variant hover:text-primary transition-colors"
-                title="Copy snippet"
-              >
-                <span className="material-symbols-outlined text-[18px]">content_copy</span>
-              </button>
-            </div>
+            {currentEvidence && (
+              <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                <button
+                  onClick={() => navigator.clipboard.writeText(currentEvidence.snippet)}
+                  className="p-1 hover:bg-surface-variant rounded text-on-surface-variant hover:text-primary transition-colors"
+                  title="Copy snippet"
+                >
+                  <span className="material-symbols-outlined text-[18px]">content_copy</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Syntax Highlighted Code Viewer */}
-          <div className="p-4 flex-1 font-code-sm text-xs bg-surface-container-lowest overflow-x-auto space-y-1">
-            {sampleCodeAuthService.split('\n').map((line, idx) => {
-              const lineNum = idx + 1;
-              const isHighlighted = lineNum >= 14 && lineNum <= 25; // Highlight token generation
-              return (
-                <div
-                  key={idx}
-                  className={`flex items-center gap-4 px-2 py-0.5 rounded transition-colors ${
-                    isHighlighted ? 'bg-primary/10 border-l-2 border-primary font-medium' : 'hover:bg-surface-container/30'
-                  }`}
-                >
-                  <span className="w-8 text-right text-outline opacity-40 select-none">{lineNum}</span>
-                  <span className={`leading-relaxed ${isHighlighted ? 'text-primary' : 'text-on-surface-variant'}`}>
-                    {line}
-                  </span>
+          {currentEvidence ? (
+            <div className="flex-1 flex flex-col justify-between">
+              {/* Evidence File Info Bar */}
+              <div className="px-4 py-2 bg-surface-container/40 border-b border-outline-variant/20 flex flex-wrap items-center justify-between gap-2 text-xs font-code-sm">
+                <div className="flex items-center gap-2 text-on-surface">
+                  <span className="text-primary font-semibold">{currentEvidence.filePath}</span>
+                  {currentEvidence.lineRanges && currentEvidence.lineRanges.length > 0 && (
+                    <span className="text-on-surface-variant text-[11px]">
+                      (Lines {currentEvidence.lineRanges[0].start}-{currentEvidence.lineRanges[0].end})
+                    </span>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
+                <div className="flex items-center gap-2 text-[11px] text-on-surface-variant">
+                  <span>Score: {currentEvidence.relevanceScore}</span>
+                  {currentEvidence.matchedSymbols && currentEvidence.matchedSymbols.length > 0 && (
+                    <span className="text-primary/80">
+                      Symbols: [{currentEvidence.matchedSymbols.join(', ')}]
+                    </span>
+                  )}
+                </div>
+              </div>
 
+              {/* Code Snippet Output */}
+              <div className="p-4 flex-1 font-code-sm text-xs bg-surface-container-lowest overflow-x-auto space-y-1">
+                {currentEvidence.snippet.split('\n').map((line, idx) => {
+                  const startLine = currentEvidence.lineRanges && currentEvidence.lineRanges.length > 0
+                    ? currentEvidence.lineRanges[0].start
+                    : 1;
+                  const lineNum = startLine + idx;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-4 px-2 py-0.5 rounded transition-colors hover:bg-surface-container/30 bg-primary/5 border-l-2 border-primary/50"
+                    >
+                      <span className="w-10 text-right text-outline opacity-50 select-none">{lineNum}</span>
+                      <span className="leading-relaxed text-on-surface">
+                        {line}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="p-12 flex-1 flex flex-col items-center justify-center text-center space-y-3">
+              <span className="material-symbols-outlined text-outline-variant text-[48px]">code</span>
+              <p className="text-xs text-on-surface-variant max-w-sm">
+                Ask a question in the AI Terminal to inspect actual repository source snippets, line numbers, and AST symbol references.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

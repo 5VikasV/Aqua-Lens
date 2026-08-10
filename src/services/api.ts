@@ -1,4 +1,4 @@
-import { AnalyzeResponse, ImpactAnalysisRequest, ImpactAnalysisResult } from '../types';
+import { AnalyzeResponse, ImpactAnalysisRequest, ImpactAnalysisResult, InvestigateResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -109,4 +109,58 @@ export async function analyzeImpactApi(request: ImpactAnalysisRequest): Promise<
     };
   }
 }
+
+export async function analyzeInvestigationApi(
+  workspaceId: string,
+  question: string
+): Promise<InvestigateResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/investigate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ workspaceId, question })
+    });
+
+    const data: InvestigateResponse = await response.json();
+
+    if (!response.ok || !data.success) {
+      return {
+        success: false,
+        answer: data.answer || 'Investigation query failed.',
+        claims: [],
+        confidence: 'LOW',
+        evidence: [],
+        referencedFiles: [],
+        retrievedContextMetadata: {
+          totalFilesRetrieved: 0,
+          totalLinesRetrieved: 0,
+          totalCharactersRetrieved: 0,
+          queryTermsUsed: []
+        },
+        error: data.error || `Server responded with HTTP ${response.status}: ${response.statusText}`
+      };
+    }
+
+    return data;
+  } catch (error: any) {
+    return {
+      success: false,
+      answer: 'Unable to connect to backend investigation service.',
+      claims: [],
+      confidence: 'LOW',
+      evidence: [],
+      referencedFiles: [],
+      retrievedContextMetadata: {
+        totalFilesRetrieved: 0,
+        totalLinesRetrieved: 0,
+        totalCharactersRetrieved: 0,
+        queryTermsUsed: []
+      },
+      error: `Cannot connect to backend server at ${API_BASE_URL}. Make sure the backend server is running.`
+    };
+  }
+}
+
 

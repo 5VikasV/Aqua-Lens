@@ -150,6 +150,7 @@ export interface BackendAnalysisSummary {
 
 export interface AnalyzeResponse {
   success: boolean;
+  workspaceId?: string;
   repository: BackendRepositoryInfo;
   languages: BackendLanguageMetric[];
   fileCount: number;
@@ -209,5 +210,42 @@ export interface ImpactAnalysisRequest {
   files?: BackendFileMetric[];
   targetPath: string;
 }
+
+// AI Investigation Types
+export interface InvestigateRequest {
+  workspaceId: string;
+  question: string;
+}
+
+export interface InvestigateEvidence {
+  id: string;
+  filePath: string;
+  matchedSymbols: string[];
+  lineRanges: { start: number; end: number }[];
+  snippet: string;
+  relevanceScore: number;
+}
+
+export interface InvestigateClaim {
+  text: string;
+  evidenceIds: string[];
+}
+
+export interface InvestigateResponse {
+  success: boolean;
+  answer: string;
+  claims: InvestigateClaim[];
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  evidence: InvestigateEvidence[];
+  referencedFiles: string[];
+  retrievedContextMetadata: {
+    totalFilesRetrieved: number;
+    totalLinesRetrieved: number;
+    totalCharactersRetrieved: number;
+    queryTermsUsed: string[];
+  };
+  error?: string;
+}
+
 
 

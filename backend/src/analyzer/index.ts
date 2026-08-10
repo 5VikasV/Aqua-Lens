@@ -128,6 +128,7 @@ export async function analyzeRepository(repositoryUrl: string): Promise<AnalyzeR
 
     return {
       success: true,
+      workspaceId,
       repository: {
         url: validation.normalizedUrl,
         owner: validation.owner,
