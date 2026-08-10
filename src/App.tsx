@@ -168,6 +168,8 @@ export function App() {
 
             {currentView === 'impact' && (
               <ImpactAnalysisView
+                analysisData={analysisData}
+                repoUrl={targetRepoUrl || selectedRepo}
                 onSelectView={setCurrentView}
               />
             )}
