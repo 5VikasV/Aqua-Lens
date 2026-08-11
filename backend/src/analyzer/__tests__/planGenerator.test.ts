@@ -7,6 +7,7 @@ import {
 } from '../planGenerator.js';
 import { WorkspaceNotFoundError, InvalidQuestionError } from '../aiInvestigator.js';
 import { workspaceStore } from '../workspaceStore.js';
+import { getGeminiModel, DEFAULT_GEMINI_MODEL } from '../geminiConfig.js';
 
 test('Dynamic Change Plan Generator Test Suite', async (t) => {
   const testWorkspaceId = 'test-org/plan-repo';
@@ -230,10 +231,44 @@ test('Dynamic Change Plan Generator Test Suite', async (t) => {
       assert.equal(plan.success, true);
       assert.equal(plan.steps.length, 1);
       assert.equal(plan.steps[0].filePath, plan.targetFiles[0]);
-      assert.ok(plan.warnings.some(w => w.includes('Gemini API call error')));
+      assert.ok(plan.warnings.some(w => w.includes('Gemini API call failed')));
+    } finally {
+      if (originalKey) process.env.GEMINI_API_KEY = originalKey;
+      else delete process.env.GEMINI_API_KEY;
+    }
+  });
+
+  await t.test('12. getGeminiModel defaults to gemini-3.6-flash and respects GEMINI_MODEL env var', () => {
+    const originalModel = process.env.GEMINI_MODEL;
+    delete process.env.GEMINI_MODEL;
+
+    assert.equal(getGeminiModel(), DEFAULT_GEMINI_MODEL);
+    assert.equal(getGeminiModel(), 'gemini-3.6-flash');
+
+    process.env.GEMINI_MODEL = 'custom-gemini-model';
+    assert.equal(getGeminiModel(), 'custom-gemini-model');
+
+    if (originalModel) process.env.GEMINI_MODEL = originalModel;
+    else delete process.env.GEMINI_MODEL;
+  });
+
+  await t.test('13. Gemini API error catch fallback produces clean summary free of raw error JSON', async () => {
+    const originalKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'invalid-fake-key-for-error-testing';
+
+    try {
+      const plan = await generateChangePlan(testWorkspaceId, 'createApp router');
+      assert.equal(plan.success, true);
+      assert.equal(
+        plan.summary,
+        'AI generation was unavailable, so Aqua Lens generated a deterministic fallback plan from repository evidence.'
+      );
+      assert.equal(plan.summary.includes('{'), false);
+      assert.equal(plan.summary.includes('"code"'), false);
     } finally {
       if (originalKey) process.env.GEMINI_API_KEY = originalKey;
       else delete process.env.GEMINI_API_KEY;
     }
   });
 });
+

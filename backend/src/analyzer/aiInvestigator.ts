@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { getGeminiModel } from './geminiConfig.js';
 import {
   InvestigateClaim,
   InvestigateEvidence,
@@ -174,7 +175,7 @@ export async function investigateWorkspace(
     const ai = new GoogleGenAI({ apiKey });
     const { prompt, systemInstruction } = buildInvestigatorPrompt(rawQuestion, retrievedCtx, evidence);
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const modelName = getGeminiModel();
     const response = await ai.models.generateContent({
       model: modelName,
       contents: prompt,
@@ -206,15 +207,19 @@ export async function investigateWorkspace(
     };
 
   } catch (geminiErr: any) {
-    // Safe error handling for Gemini API failures: fallback gracefully without crashing
+    // Safe error handling for Gemini API failures: fallback gracefully without exposing raw provider error details
     const fallbackClaims: InvestigateClaim[] = evidence.map(e => ({
       text: `Evidence in \`${e.filePath}\` (score: ${e.relevanceScore}) matches query.`,
       evidenceIds: [e.id]
     }));
 
+    const fallbackAnswer = evidence.length > 0
+      ? `AI generation was unavailable, so Aqua Lens retrieved ${evidence.length} relevant file(s) from workspace \`${workspaceId}\` matching "${rawQuestion}". Top match: \`${evidence[0].filePath}\`.`
+      : `No matching code context found in workspace \`${workspaceId}\` for query "${rawQuestion}".`;
+
     return {
       success: true,
-      answer: `[API Fallback] Analyzed code context for "${rawQuestion}". Top evidence file: \`${evidence.length > 0 ? evidence[0].filePath : 'none'}\`. (${geminiErr.message || 'Gemini API call error'})`,
+      answer: fallbackAnswer,
       claims: fallbackClaims,
       confidence,
       evidence,

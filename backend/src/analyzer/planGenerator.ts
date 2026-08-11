@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { getGeminiModel } from './geminiConfig.js';
 import {
   ChangePlanResponse,
   ChangePlanRiskLevel,
@@ -286,7 +287,7 @@ export async function generateChangePlan(
       affectedFiles
     );
 
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const modelName = getGeminiModel();
     const response = await ai.models.generateContent({
       model: modelName,
       contents: prompt,
@@ -335,7 +336,7 @@ export async function generateChangePlan(
     };
 
   } catch (err: any) {
-    // Graceful error fallback for Gemini API errors
+    // Graceful error fallback for Gemini API errors: never expose raw provider JSON or stack traces
     const primaryTarget = targetFiles.length > 0 ? targetFiles[0] : null;
     const fallbackSteps: ProposedChangeStep[] = primaryTarget ? [{
       stepNumber: 1,
@@ -360,7 +361,7 @@ export async function generateChangePlan(
       success: true,
       planId,
       title: `Plan: ${rawRequest.slice(0, 45)}`,
-      summary: `[API Fallback] Plan generated from retrieved AST context for "${rawRequest}". (${err.message || 'Gemini API call error'})`,
+      summary: 'AI generation was unavailable, so Aqua Lens generated a deterministic fallback plan from repository evidence.',
       riskLevel,
       targetFiles,
       affectedFiles,
@@ -368,7 +369,7 @@ export async function generateChangePlan(
       verificationSteps: ['npm test'],
       evidenceReferences,
       validation,
-      warnings: [`Gemini API call error: ${err.message || 'Fallback mode'}`]
+      warnings: ['Gemini API call failed. Generated deterministic fallback plan.']
     };
   }
 }
